@@ -18,17 +18,23 @@ type CartRepository interface {
 	RemoveAllCartItemsByUserId(_ context.Context, userId uuid.UUID) error
 }
 
-type ProductService interface {
+type ProductRepository interface {
+	GetProductBySku(ctx context.Context, sku uint64) (model.Product, error)
+	AddProduct(ctx context.Context, product model.Product) (*model.Product, error)
+}
+
+type ProductClient interface {
 	GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error)
 }
 
 type CartService struct {
-	cartRepository CartRepository
-	productService ProductService
+	cartRepository    CartRepository
+	productClient     ProductClient
+	productRepository ProductRepository
 }
 
-func NewCartService(cartRepository CartRepository, productService ProductService) *CartService {
-	return &CartService{cartRepository: cartRepository, productService: productService}
+func NewCartService(cartRepository CartRepository, productService ProductClient, productRepository ProductRepository) *CartService {
+	return &CartService{cartRepository: cartRepository, productClient: productService, productRepository: productRepository}
 }
 
 func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {
@@ -44,6 +50,7 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		return errors.New("count must be greater than zero")
 	}
 
+	//Такой продукт уже есть в корзине - прибавляем количество
 	// TODO: refactor this
 	existingCartItem, err := s.cartRepository.GetCartItem(ctx, userId, sku)
 	if err != nil && !errors.Is(err, model.ErrCartItemsNotFound) {
@@ -58,13 +65,32 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		return nil
 	}
 
-	_, err = s.productService.GetProductBySku(ctx, sku)
+	// Продукта нет в корзине - запрашиваем сначала в мастер-системе продуктов, если нет - ошибка
+	productInMasterSystem, err := s.productClient.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
-			return fmt.Errorf("productService.GetProductBySku: %w", err)
+			return fmt.Errorf("productClient.GetProductBySku: %w", err)
 		}
 
 		return err
+	}
+
+	// Теперь смотрим у себя в базе есть ли этот продукт, если нет - добавляем
+	_, err = s.productRepository.GetProductBySku(ctx, sku)
+	if err != nil {
+		if errors.Is(err, model.ErrProductNotFound) {
+			_, err = s.productRepository.AddProduct(ctx, model.Product{
+				Sku:   sku,
+				Price: productInMasterSystem.Price,
+				Name:  productInMasterSystem.Name,
+			})
+
+			if err != nil {
+				return fmt.Errorf("productRepository.AddProduct: %w", err)
+			}
+		}
+
+		return fmt.Errorf("productRepository.GetProductsBySku: %w", err)
 	}
 
 	cartItem := model.CartItem{

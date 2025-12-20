@@ -1,4 +1,4 @@
-package service
+package client
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 
 const HeaderXApiKey = "X-API-KEY"
 
-type ProductService struct {
+type ProductClient struct {
 	client  http.Client
 	token   string
 	address string
@@ -20,15 +20,15 @@ type ProductService struct {
 
 func NewProductService(client http.Client,
 	token string,
-	address string) *ProductService {
-	return &ProductService{
+	address string) *ProductClient {
+	return &ProductClient{
 		client:  client,
 		token:   token,
 		address: address,
 	}
 }
 
-func (s *ProductService) GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error) {
+func (s *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error) {
 	request, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
