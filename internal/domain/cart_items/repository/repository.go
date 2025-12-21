@@ -20,18 +20,28 @@ func NewPgxCartItemRepository(pool *pgxpool.Pool) *PgxCartItemRepository {
 }
 
 type CartItemRow struct {
-	Id     uint64
-	SkuId  uint64
-	UserId uuid.UUID
-	Count  uint32
+	id           uint64
+	userId       uuid.UUID
+	count        uint32
+	productSku   uint64
+	productPrice float64
+	productName  string
 }
 
 func (r *PgxCartItemRepository) GetCartItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, error) {
 	const query = `
-SELECT id, sku_id, user_id, count 
-FROM cart_items 
-WHERE user_id = $1
-ORDER BY id DESC`
+SELECT
+    ci.id AS id,
+    ci.user_id,
+    ci.count,
+
+    p.sku,
+    p.price,
+    p.name
+FROM cart_items ci
+INNER JOIN products p ON p.sku = ci.sku_id
+WHERE ci.user_id = $1
+ORDER BY ci.id DESC`
 
 	rows, err := r.pool.Query(ctx, query, userId)
 	if err != nil {
@@ -44,10 +54,12 @@ ORDER BY id DESC`
 	for rows.Next() {
 		var cartItemRow CartItemRow
 		err = rows.Scan(
-			&cartItemRow.Id,
-			&cartItemRow.SkuId,
-			&cartItemRow.UserId,
-			&cartItemRow.Count)
+			&cartItemRow.id,
+			&cartItemRow.userId,
+			&cartItemRow.count,
+			&cartItemRow.productSku,
+			&cartItemRow.productPrice,
+			&cartItemRow.productName)
 
 		if err != nil {
 			return nil, fmt.Errorf("CartItemRepository.GetCartItemsByUserId: %w", err)
@@ -60,10 +72,14 @@ ORDER BY id DESC`
 
 	for _, cartItemRow := range cartItemRows {
 		result = append(result, model.CartItem{
-			Id:     cartItemRow.Id,
-			SkuId:  cartItemRow.SkuId,
-			UserId: cartItemRow.UserId,
-			Count:  cartItemRow.Count,
+			Id:     cartItemRow.id,
+			UserId: cartItemRow.userId,
+			Count:  cartItemRow.count,
+			Product: model.Product{
+				Sku:   cartItemRow.productSku,
+				Name:  cartItemRow.productName,
+				Price: cartItemRow.productPrice,
+			},
 		})
 	}
 
@@ -74,19 +90,32 @@ ORDER BY id DESC`
 
 func (r *PgxCartItemRepository) GetCartItem(ctx context.Context, userId uuid.UUID, sku uint64) (*model.CartItem, error) {
 	const query = `
-SELECT 
-    id, sku_id, user_id, count 
-FROM 
-    cart_items 
+SELECT
+    ci.id AS id,
+    ci.user_id,
+    ci.count,
+
+    p.sku,
+    p.price,
+    p.name
+FROM cart_items ci
+INNER JOIN products p ON p.sku = ci.sku_id
 WHERE 
-    user_id = $1
-    AND sku_id = $2`
+    ci.user_id = $1
+    AND ci.sku_id = $2`
 
 	row := r.pool.QueryRow(ctx, query, userId, sku)
 
-	var productRow = CartItemRow{}
+	var cartItemRow = CartItemRow{}
 
-	err := row.Scan(&productRow.Id, &productRow.SkuId, &productRow.UserId, &productRow.Count)
+	err := row.Scan(
+		&cartItemRow.id,
+		&cartItemRow.userId,
+		&cartItemRow.count,
+		&cartItemRow.productSku,
+		&cartItemRow.productPrice,
+		&cartItemRow.productName)
+
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, model.ErrCartItemsNotFound
@@ -96,16 +125,20 @@ WHERE
 
 	// Преобразуем типы в модель приложения
 	result := &model.CartItem{
-		Id:     productRow.Id,
-		SkuId:  productRow.SkuId,
-		UserId: productRow.UserId,
-		Count:  productRow.Count,
+		Id:     cartItemRow.id,
+		UserId: cartItemRow.userId,
+		Count:  cartItemRow.count,
+		Product: model.Product{
+			Sku:   cartItemRow.productSku,
+			Name:  cartItemRow.productName,
+			Price: cartItemRow.productPrice,
+		},
 	}
 
 	return result, nil
 }
 
-func (r *PgxCartItemRepository) AddCartItem(ctx context.Context, cartItem model.CartItem) (*model.CartItem, error) {
+func (r *PgxCartItemRepository) AddCartItem(ctx context.Context, cartItem model.CartItem) (uint64, error) {
 	const query = `
 INSERT INTO 
     cart_items (sku_id, user_id, count) 
@@ -116,23 +149,16 @@ RETURNING
 
 	var id int64
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, query, cartItem.SkuId, cartItem.UserId, cartItem.Count).Scan(&id)
+		return tx.QueryRow(ctx, query, cartItem.Product.Sku, cartItem.UserId, cartItem.Count).Scan(&id)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert cart item: %w", err)
+		return 0, fmt.Errorf("failed to insert cart item: %w", err)
 	}
 
-	result := model.CartItem{
-		Id:     uint64(id),
-		SkuId:  cartItem.SkuId,
-		UserId: cartItem.UserId,
-		Count:  cartItem.Count,
-	}
-
-	return &result, nil
+	return uint64(id), nil
 }
 
-func (r *PgxCartItemRepository) UpdateCartItem(ctx context.Context, id uint64, cartItem model.CartItem) (*model.CartItem, error) {
+func (r *PgxCartItemRepository) UpdateCartItem(ctx context.Context, id uint64, cartItem model.CartItem) error {
 	const query = `
 UPDATE 
     cart_items
@@ -146,17 +172,10 @@ WHERE
 		return err
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert cart item: %w", err)
+		return fmt.Errorf("failed to insert cart item: %w", err)
 	}
 
-	result := model.CartItem{
-		Id:     id,
-		SkuId:  cartItem.SkuId,
-		UserId: cartItem.UserId,
-		Count:  cartItem.Count,
-	}
-
-	return &result, nil
+	return nil
 }
 
 func (r *PgxCartItemRepository) RemoveCartItem(ctx context.Context, userId uuid.UUID, sku uint64) error {

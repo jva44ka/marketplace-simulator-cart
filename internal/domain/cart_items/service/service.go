@@ -10,8 +10,8 @@ import (
 )
 
 type CartRepository interface {
-	AddCartItem(_ context.Context, cartItem model.CartItem) (*model.CartItem, error)
-	UpdateCartItem(_ context.Context, id uint64, cartItem model.CartItem) (*model.CartItem, error)
+	AddCartItem(_ context.Context, cartItem model.CartItem) (uint64, error)
+	UpdateCartItem(_ context.Context, id uint64, cartItem model.CartItem) error
 	GetCartItemsByUserId(_ context.Context, userId uuid.UUID) ([]model.CartItem, error)
 	GetCartItem(_ context.Context, userId uuid.UUID, sku uint64) (*model.CartItem, error)
 	RemoveCartItem(_ context.Context, userId uuid.UUID, sku uint64) error
@@ -58,7 +58,7 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 	}
 	if existingCartItem != nil {
 		resultCount := existingCartItem.Count + count
-		_, err = s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
+		err = s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
 			Count: resultCount,
 		})
 
@@ -76,7 +76,7 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 	}
 
 	// Теперь смотрим у себя в базе есть ли этот продукт, если нет - добавляем
-	_, err = s.productRepository.GetProductBySku(ctx, sku)
+	productInDb, err := s.productRepository.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
 			_, err = s.productRepository.AddProduct(ctx, model.Product{
@@ -94,9 +94,9 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 	}
 
 	cartItem := model.CartItem{
-		UserId: userId,
-		SkuId:  sku,
-		Count:  count,
+		UserId:  userId,
+		Count:   count,
+		Product: productInDb,
 	}
 
 	_, err = s.cartRepository.AddCartItem(ctx, cartItem)

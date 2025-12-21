@@ -30,7 +30,7 @@ func (r *PgxProductRepository) GetProductBySku(ctx context.Context, sku uint64) 
 		return model.Product{}, err
 	}
 	if len(products) == 0 {
-		return model.Product{}, errors.New("zero products returned from db")
+		return model.Product{}, model.ErrProductNotFound
 	}
 	if len(products) > 1 {
 		return model.Product{}, errors.New("more than one products returned from db")
@@ -43,7 +43,7 @@ func (r *PgxProductRepository) GetProductsBySku(ctx context.Context, skus []uint
 	const query = `
 SELECT sku, price, name
 FROM products 
-WHERE sku IN ($1)
+WHERE sku = ANY ($1)
 ORDER BY sku DESC`
 
 	rows, err := r.pool.Query(ctx, query, skus)
@@ -51,9 +51,11 @@ ORDER BY sku DESC`
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, model.ErrProductsNotFound
 		}
+
+		return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 	}
 
-	var ProductRows []ProductRow
+	var productRows []ProductRow
 	for rows.Next() {
 		var ProductRow ProductRow
 		err = rows.Scan(
@@ -65,12 +67,12 @@ ORDER BY sku DESC`
 			return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 		}
 
-		ProductRows = append(ProductRows, ProductRow)
+		productRows = append(productRows, ProductRow)
 	}
 
 	var result []model.Product
 
-	for _, ProductRow := range ProductRows {
+	for _, ProductRow := range productRows {
 		result = append(result, model.Product{
 			Sku:   ProductRow.Sku,
 			Price: ProductRow.Price,
