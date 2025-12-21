@@ -142,10 +142,10 @@ func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([
 		return nil, errors.New("userId must be not Nil")
 	}
 
-	reviews, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
+	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
 	if err != nil {
 		return nil, fmt.Errorf("cartRepository.GetCartItemsByUserId :%w", err)
 	}
 
-	return reviews, nil
+	return cartItems, nil
 }

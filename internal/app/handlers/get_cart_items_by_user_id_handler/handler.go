@@ -15,12 +15,17 @@ type CartService interface {
 	GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, error)
 }
 
-type GetReviewsBySkuHandler struct {
-	cartService CartService
+type ProductService interface {
+	GetProductsBySku(ctx context.Context, skus []uint64) ([]model.Product, error)
 }
 
-func NewGetCartItemsByUserIdHandler(cartService CartService) *GetReviewsBySkuHandler {
-	return &GetReviewsBySkuHandler{cartService: cartService}
+type GetReviewsBySkuHandler struct {
+	cartService    CartService
+	productService ProductService
+}
+
+func NewGetCartItemsByUserIdHandler(cartService CartService, productService ProductService) *GetReviewsBySkuHandler {
+	return &GetReviewsBySkuHandler{cartService: cartService, productService: productService}
 }
 
 // @Summary      Получить содержимое корзины
@@ -58,6 +63,20 @@ func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	}
 
 	cartItems, err := h.cartService.GetItemsByUserId(r.Context(), userId)
+	if err != nil {
+		if err = httpPkg.NewErrorResponse(w, http.StatusInternalServerError, err.Error()); err != nil {
+			return
+		}
+
+		return
+	}
+
+	var cartItemsSkus []uint64
+	for _, cartItem := range cartItems {
+		cartItemsSkus = append(cartItemsSkus, cartItem.SkuId)
+	}
+
+	products, err := h.productService.GetProductsBySku(r.Context(), cartItemsSkus)
 	if err != nil {
 		if err = httpPkg.NewErrorResponse(w, http.StatusInternalServerError, err.Error()); err != nil {
 			return

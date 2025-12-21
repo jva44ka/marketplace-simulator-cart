@@ -18,7 +18,7 @@ type ProductClient struct {
 	address string
 }
 
-func NewProductService(client http.Client,
+func NewProductClient(client http.Client,
 	token string,
 	address string) *ProductClient {
 	return &ProductClient{

@@ -12,11 +12,13 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
-	productsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/client"
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	cartItemsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/repository"
 	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/service"
+	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/client"
+	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/repository"
+	productsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/service"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/round_trippers"
@@ -62,7 +64,7 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 
 	client := http.Client{Transport: tr}
 
-	productService := productsServicePkg.NewProductService(
+	productClient := productsClientPkg.NewProductClient(
 		client,
 		config.Products.Token,
 		fmt.Sprintf("%s://%s:%s", config.Products.Schema, config.Products.Host, config.Products.Port),
@@ -80,11 +82,14 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 		return nil, fmt.Errorf("pgxpool.New: %w", err)
 	}
 
+	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool)
+	productService := productsServicePkg.NewProductService(productRepository)
+
 	cartRepository := cartItemsRepositoryPkg.NewPgxCartItemRepository(pool)
-	cartService := cartItemsServicePkg.NewCartService(cartRepository, productService)
+	cartService := cartItemsServicePkg.NewCartService(cartRepository, productClient, productRepository)
 
 	mx := http.NewServeMux()
-	mx.Handle("GET /user/{user_id}/cart", get_cart_items_by_user_id_handler.NewGetCartItemsByUserIdHandler(cartService))
+	mx.Handle("GET /user/{user_id}/cart", get_cart_items_by_user_id_handler.NewGetCartItemsByUserIdHandler(cartService, productService))
 	mx.Handle("POST /user/{user_id}/cart/{sku_id}", add_products_to_cart_handler.NewAddProductsToCartHandler(cartService))
 	mx.Handle("DELETE /user/{user_id}/cart/{sku_id}", remove_products_from_cart_handler.NewRemoveProductsFromCartHandler(cartService))
 	mx.Handle("DELETE /user/{user_id}/cart", clean_cart_handler.NewCleanCartHandler(cartService))
