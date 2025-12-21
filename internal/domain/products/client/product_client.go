@@ -3,14 +3,24 @@ package client
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
 )
 
 const HeaderXApiKey = "X-API-KEY"
+
+type getProductResponse struct {
+	Product productResponse `json:"product"`
+}
+
+type productResponse struct {
+	Sku   uint64  `json:"sku"`
+	Price float64 `json:"price"`
+	Name  string  `json:"name"`
+}
 
 type ProductClient struct {
 	client  http.Client
@@ -46,18 +56,26 @@ func (s *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusNotFound {
-		return nil, model.ErrProductNotFound
-	}
-
 	if response.StatusCode != http.StatusOK {
-		return nil, errors.New("http query failed")
+		if response.StatusCode == http.StatusNotFound {
+			return nil, model.ErrProductNotFound
+		}
+
+		body, _ := io.ReadAll(response.Body)
+		return nil, fmt.Errorf("http error %d: %s", response.StatusCode, body)
 	}
 
-	product := &model.Product{}
-	if err := json.NewDecoder(response.Body).Decode(product); err != nil {
+	productResponse := getProductResponse{}
+
+	if err = json.NewDecoder(response.Body).Decode(&productResponse); err != nil {
 		return nil, err
 	}
 
-	return product, nil
+	product := model.Product{
+		Sku:   productResponse.Product.Sku,
+		Price: productResponse.Product.Price,
+		Name:  productResponse.Product.Name,
+	}
+
+	return &product, nil
 }

@@ -76,7 +76,7 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 	}
 
 	// Теперь смотрим у себя в базе есть ли этот продукт, если нет - добавляем
-	productInDb, err := s.productRepository.GetProductBySku(ctx, sku)
+	_, err = s.productRepository.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
 			_, err = s.productRepository.AddProduct(ctx, model.Product{
@@ -88,15 +88,19 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 			if err != nil {
 				return fmt.Errorf("productRepository.AddProduct: %w", err)
 			}
+		} else {
+			return fmt.Errorf("productRepository.GetProductsBySku: %w", err)
 		}
-
-		return fmt.Errorf("productRepository.GetProductsBySku: %w", err)
 	}
 
 	cartItem := model.CartItem{
-		UserId:  userId,
-		Count:   count,
-		Product: productInDb,
+		UserId: userId,
+		Count:  count,
+		Product: model.Product{
+			Sku:   sku,
+			Price: productInMasterSystem.Price,
+			Name:  productInMasterSystem.Name,
+		},
 	}
 
 	_, err = s.cartRepository.AddCartItem(ctx, cartItem)
