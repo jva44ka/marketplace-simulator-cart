@@ -3,7 +3,7 @@ package add_products_to_cart_handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -41,63 +41,55 @@ func NewAddProductsToCartHandler(cartService CartService) *AddProductsToCartHand
 func (h *AddProductsToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	skuRaw := r.PathValue("sku_id")
-	sku, err := strconv.Atoi(skuRaw)
+	sku, err := parseSku(r)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, "sku must be more than zero"); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if sku < 1 {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, "sku must be more than zero"); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
-		return
-	}
-
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
+	userId, err := parseUserId(r)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, "user_id must be valid uuid"); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	var request AddProductToCartRequest
 
 	if err = json.NewDecoder(r.Body).Decode(&request); err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, err.Error()); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	err = h.cartService.AddProduct(r.Context(), userId, uint64(sku), request.Count)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusInternalServerError, err.Error()); err != nil {
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Header().Add("Content-Type", "application/json")
-
+	httpPkg.WriteSuccessEmptyResponse(w)
 	return
+}
+
+func parseSku(r *http.Request) (int, error) {
+	skuRaw := r.PathValue("sku")
+	sku, err := strconv.Atoi(skuRaw)
+	if err != nil {
+		return 0, errors.New("sku must be a number")
+	}
+
+	if sku < 1 {
+		return 0, errors.New("sku must be more than zero")
+	}
+
+	return sku, nil
+}
+
+func parseUserId(r *http.Request) (uuid.UUID, error) {
+	userIdRaw := r.PathValue("user_id")
+	userId, err := uuid.Parse(userIdRaw)
+	if err != nil {
+		return uuid.Nil, errors.New("user_id must be valid uuid")
+	}
+
+	return userId, nil
 }

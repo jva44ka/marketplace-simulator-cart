@@ -2,8 +2,9 @@ package clean_cart_handler
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	httpPkg "github.com/jva44ka/ozon-simulator-go-cart/pkg/http"
@@ -34,29 +35,44 @@ func NewCleanCartHandler(cartService CartService) *CleanCartHandler {
 func (h *CleanCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
+	userId, err := parseUserId(r)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, "user_id must be valid uuid"); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	err = h.cartService.RemoveAllProducts(r.Context(), userId)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusInternalServerError, err.Error()); err != nil {
-			return
-		}
+		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Header().Add("Content-Type", "application/json")
+	httpPkg.WriteSuccessEmptyResponse(w)
 
 	return
+}
+
+func parseSku(r *http.Request) (int, error) {
+	skuRaw := r.PathValue("sku")
+	sku, err := strconv.Atoi(skuRaw)
+	if err != nil {
+		return 0, errors.New("sku must be a number")
+	}
+
+	if sku < 1 {
+		return 0, errors.New("sku must be more than zero")
+	}
+
+	return sku, nil
+}
+
+func parseUserId(r *http.Request) (uuid.UUID, error) {
+	userIdRaw := r.PathValue("user_id")
+	userId, err := uuid.Parse(userIdRaw)
+	if err != nil {
+		return uuid.Nil, errors.New("user_id must be valid uuid")
+	}
+
+	return userId, nil
 }

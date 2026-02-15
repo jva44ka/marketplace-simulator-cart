@@ -2,8 +2,7 @@ package get_cart_items_by_user_id_handler
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -35,34 +34,20 @@ func NewGetCartItemsByUserIdHandler(cartService CartService) *GetReviewsBySkuHan
 // @Failure      404  {object}  httpPkg.ErrorResponse
 // @Router       /user/{user_id}/cart [get]
 func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
+	userId, err := parseUserId(r)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, "user_id must be valid uuid"); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if userId == uuid.Nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusBadRequest, "userId must be not Nil"); err != nil {
-			fmt.Println("json.Encode failed ", err)
-
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, "userId must be not Nil")
 		return
 	}
 
 	cartItems, err := h.cartService.GetItemsByUserId(r.Context(), userId)
 	if err != nil {
-		if err = httpPkg.NewErrorResponse(w, http.StatusInternalServerError, err.Error()); err != nil {
-			return
-		}
-
+		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -76,11 +61,16 @@ func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	w.Header().Add("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(&response); err != nil {
-		fmt.Println("success status failed")
-		return
+	httpPkg.WriteSuccessResponse(w, response)
+	return
+}
+
+func parseUserId(r *http.Request) (uuid.UUID, error) {
+	userIdRaw := r.PathValue("user_id")
+	userId, err := uuid.Parse(userIdRaw)
+	if err != nil {
+		return uuid.Nil, errors.New("user_id must be valid uuid")
 	}
 
-	return
+	return userId, nil
 }
