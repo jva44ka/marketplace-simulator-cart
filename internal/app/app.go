@@ -7,11 +7,11 @@ import (
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jva44ka/ozon-simulator-go-cart/docs"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/add_products_to_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
+	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	httpSwagger "github.com/swaggo/http-swagger"
 
 	cartItemsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/repository"
@@ -61,13 +61,15 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 	tr := http.DefaultTransport
 	tr = round_trippers.NewTimerRoundTipper(tr)
 
-	client := http.Client{Transport: tr}
-
-	productClient := productsClientPkg.NewProductClient(
-		client,
-		config.Products.Token,
-		fmt.Sprintf("%s://%s:%s", config.Products.Schema, config.Products.Host, config.Products.Port),
+	productClient, err := productsClientPkg.NewProductClient(
+		config.Products.Host,
+		config.Products.Port,
+		config.Products.AuthToken,
+		config.Products.Timeout,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
+	}
 
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s",
@@ -88,8 +90,8 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 
 	mx := http.NewServeMux()
 	mx.Handle("GET /user/{user_id}/cart", get_cart_items_by_user_id_handler.NewGetCartItemsByUserIdHandler(cartService))
-	mx.Handle("POST /user/{user_id}/cart/{sku_id}", add_products_to_cart_handler.NewAddProductsToCartHandler(cartService))
-	mx.Handle("DELETE /user/{user_id}/cart/{sku_id}", remove_products_from_cart_handler.NewRemoveProductsFromCartHandler(cartService))
+	mx.Handle("POST /user/{user_id}/cart/{sku}", add_products_to_cart_handler.NewAddProductsToCartHandler(cartService))
+	mx.Handle("DELETE /user/{user_id}/cart/{sku}", remove_products_from_cart_handler.NewRemoveProductsFromCartHandler(cartService))
 	mx.Handle("DELETE /user/{user_id}/cart", clean_cart_handler.NewCleanCartHandler(cartService))
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 

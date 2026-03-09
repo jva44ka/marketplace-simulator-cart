@@ -35,4 +35,4 @@ go.work.sum
 **/values_local.yaml
 
 #свагеровские файлы
-/docs/
+/swagger/

@@ -33,11 +33,11 @@ func NewAddProductsToCartHandler(cartService CartService) *AddProductsToCartHand
 // @Accept       json
 // @Produce      json
 // @Param        user_id  path  string  true  "Токен пользователя"
-// @Param        sku_id   path  uint64  true  "SKU товара"
+// @Param        sku   path  uint64  true  "SKU товара"
 // @Param        body     body  AddProductToCartRequest  true  "Тело запроса с количеством товаров"
 // @Success      200  {object}  AddProductToCartResponse
 // @Failure      404  {object}  httpPkg.ErrorResponse
-// @Router       /user/{user_id}/cart/{sku_id} [post]
+// @Router       /user/{user_id}/cart/{sku} [post]
 func (h *AddProductsToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 

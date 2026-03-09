@@ -3,7 +3,6 @@
 LOCAL_BIN:=$(CURDIR)/bin
 MIGRATION_NAME ?= init.sql
 
-
 install-goose:
 	$(info Installing goose binary into [$(LOCAL_BIN)]...)
 	GOBIN=$(LOCAL_BIN) go install github.com/pressly/goose/v3/cmd/goose@v3.24.1
@@ -32,4 +31,16 @@ generate-swagger-bin:
 	$(LOCAL_BIN)/swag init -g cmd/server/main.go -o internal/infra/swagger --parseDependency --parseInternal
 
 generate-swagger:
-	swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	swag init -g cmd/server/main.go -o swagger --parseDependency --parseInternal
+
+proto-generate:
+	protoc \
+	-I . \
+	-I C:/Git/googleapis \
+	-I C:/Git/grpc-gateway \
+	-I C:/Git/protoc/include \
+	--go_out=./internal/app/gen \
+	--go-grpc_out=./internal/app/gen \
+	--grpc-gateway_out=./internal/app/gen \
+	--openapiv2_out=swagger \
+	internal/infra/proto/products/v1/products.proto

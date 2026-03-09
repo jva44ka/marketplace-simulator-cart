@@ -13,10 +13,11 @@ type Config struct {
 	} `yaml:"server"`
 
 	Products struct {
-		Host   string `yaml:"host"`
-		Port   string `yaml:"port"`
-		Token  string `yaml:"token"`
-		Schema string `yaml:"schema"`
+		Host      string `yaml:"host"`
+		Port      string `yaml:"port"`
+		AuthToken string `yaml:"auth-token"`
+		Schema    string `yaml:"schema"`
+		Timeout   string `yaml:"timeout"`
 	} `yaml:"products"`
 
 	Database struct {

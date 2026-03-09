@@ -29,10 +29,10 @@ func NewRemoveProductsFromCartHandler(cartService CartService) *RemoveProductsFr
 // @Accept       json
 // @Produce      json
 // @Param        user_id  path  string  true  "Токен пользователя"
-// @Param        sku_id   path  uint64  true  "SKU товара"
+// @Param        sku   path  uint64  true  "SKU товара"
 // @Success      200  {object}  RemoveProductsFromCartResponse
 // @Failure      404  {object}  httpPkg.ErrorResponse
-// @Router       /user/{user_id}/cart/{sku_id} [delete]
+// @Router       /user/{user_id}/cart/{sku} [delete]
 func (h *RemoveProductsFromCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
