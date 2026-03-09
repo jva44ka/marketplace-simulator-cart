@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"os"
 
-	app2 "github.com/jva44ka/ozon-simulator-go-cart/internal/app"
+	appPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/app"
 )
 
 func main() {
 	fmt.Println("app starting")
 
-	app, err := app2.NewApp(os.Getenv("CONFIG_PATH"))
+	app, err := appPkg.NewApp(os.Getenv("CONFIG_PATH"))
 	if err != nil {
 		panic(err)
 	}
 
-	if err := app.ListenAndServe(); err != nil {
+	if err = app.ListenAndServe(); err != nil {
 		panic(err)
 	}
 }
