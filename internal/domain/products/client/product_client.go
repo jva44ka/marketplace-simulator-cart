@@ -59,7 +59,7 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 
 	product := model.Product{
 		Sku:   resp.Sku,
-		Price: float64(resp.Price),
+		Price: resp.Price,
 		Name:  resp.Name,
 		Count: resp.Count,
 	}

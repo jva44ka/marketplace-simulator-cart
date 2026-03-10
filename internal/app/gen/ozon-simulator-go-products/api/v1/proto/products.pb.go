@@ -72,7 +72,7 @@ type GetProductResponse struct {
 	Sku           uint64                 `protobuf:"varint,1,opt,name=sku,proto3" json:"sku,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Count         uint32                 `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
-	Price         float32                `protobuf:"fixed32,4,opt,name=price,proto3" json:"price,omitempty"`
+	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -128,7 +128,7 @@ func (x *GetProductResponse) GetCount() uint32 {
 	return 0
 }
 
-func (x *GetProductResponse) GetPrice() float32 {
+func (x *GetProductResponse) GetPrice() float64 {
 	if x != nil {
 		return x.Price
 	}
@@ -662,7 +662,7 @@ const file_internal_infra_proto_products_v1_products_proto_rawDesc = "" +
 	"\x03sku\x18\x01 \x01(\x04R\x03sku\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05count\x18\x03 \x01(\rR\x05count\x12\x14\n" +
-	"\x05price\x18\x04 \x01(\x02R\x05price\"\x9f\x01\n" +
+	"\x05price\x18\x04 \x01(\x01R\x05price\"\x9f\x01\n" +
 	"\x14IncreaseStockRequest\x12I\n" +
 	"\x06stocks\x18\x01 \x03(\v21.products.IncreaseStockRequest.IncreaseStockBatchR\x06stocks\x1a<\n" +
 	"\x12IncreaseStockBatch\x12\x10\n" +

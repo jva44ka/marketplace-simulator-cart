@@ -68,7 +68,7 @@ message GetProductResponse {
   uint64 sku = 1;
   string name = 2;
   uint32 count = 3;
-  float price = 4;
+  double price = 4;
 }
 
 message IncreaseStockRequest {
