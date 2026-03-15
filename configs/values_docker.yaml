@@ -1,9 +1,17 @@
 server:
   host:
-  port: 8000
+  port: 5000
 
 products:
   schema: http
   host: products
-  port: 8082
+  port: 8002
   auth-token: testToken
+  timeout: 30s
+
+database:
+  user: cart
+  password: cart
+  host: cart-db
+  port: 5432
+  name: ozon-simulator-go-cart
