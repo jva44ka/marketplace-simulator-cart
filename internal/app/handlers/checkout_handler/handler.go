@@ -13,12 +13,12 @@ type CartService interface {
 	Checkout(ctx context.Context, userId uuid.UUID) error
 }
 
-type RemoveProductsFromCartHandler struct {
+type CheckoutHandler struct {
 	cartService CartService
 }
 
-func NewCheckoutHandler(cartService CartService) *RemoveProductsFromCartHandler {
-	return &RemoveProductsFromCartHandler{cartService: cartService}
+func NewCheckoutHandler(cartService CartService) *CheckoutHandler {
+	return &CheckoutHandler{cartService: cartService}
 }
 
 // @Summary      Оформить заказ
@@ -32,8 +32,8 @@ func NewCheckoutHandler(cartService CartService) *RemoveProductsFromCartHandler 
 // @Failure      400  {object}  httpPkg.ErrorResponse
 // @Failure      404  {object}  httpPkg.ErrorResponse
 // @Failure      500  {object}  httpPkg.ErrorResponse
-// @Router       /user/{user_id}/cart/checkout [post]]
-func (h *RemoveProductsFromCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// @Router       /user/{user_id}/cart/checkout [post]
+func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	userId, err := parseUserId(r)
@@ -49,8 +49,6 @@ func (h *RemoveProductsFromCartHandler) ServeHTTP(w http.ResponseWriter, r *http
 	}
 
 	httpPkg.WriteSuccessEmptyResponse(w)
-
-	return
 }
 
 func parseUserId(r *http.Request) (uuid.UUID, error) {
