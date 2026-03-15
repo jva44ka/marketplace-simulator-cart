@@ -25,6 +25,7 @@ type ProductRepository interface {
 
 type ProductClient interface {
 	GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error)
+	DecreaseProductCount(ctx context.Context, productCountsBySkus map[uint64]uint32) error
 }
 
 type CartService struct {
@@ -61,6 +62,10 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		err = s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
 			Count: resultCount,
 		})
+
+		if err != nil {
+			return fmt.Errorf("cartRepository.UpdateCartItem: %w", err)
+		}
 
 		return nil
 	}
@@ -152,4 +157,37 @@ func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([
 	}
 
 	return cartItems, nil
+}
+
+func (s *CartService) Checkout(ctx context.Context, userId uuid.UUID) error {
+	if userId == uuid.Nil {
+		return errors.New("user_id must be not nil")
+	}
+
+	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
+	if err != nil {
+		return fmt.Errorf("cartRepository.GetCartItemsByUserId :%w", err)
+	}
+
+	if len(cartItems) == 0 {
+		return errors.New("cartItems is empty")
+	}
+
+	productCountsBySku := map[uint64]uint32{}
+	for _, cartItem := range cartItems {
+		productCountsBySku[cartItem.Product.Sku] = cartItem.Count
+	}
+
+	//TODO сделать аутбокс для похода в products
+	err = s.productClient.DecreaseProductCount(ctx, productCountsBySku)
+	if err != nil {
+		return fmt.Errorf("productClient.DecreaseProductCount :%w", err)
+	}
+
+	err = s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId)
+	if err != nil {
+		return fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId :%w", err)
+	}
+
+	return nil
 }
