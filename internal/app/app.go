@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/add_products_to_cart_handler"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/checkout_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
@@ -93,6 +94,7 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 	mx.Handle("POST /user/{user_id}/cart/{sku}", add_products_to_cart_handler.NewAddProductsToCartHandler(cartService))
 	mx.Handle("DELETE /user/{user_id}/cart/{sku}", remove_products_from_cart_handler.NewRemoveProductsFromCartHandler(cartService))
 	mx.Handle("DELETE /user/{user_id}/cart", clean_cart_handler.NewCleanCartHandler(cartService))
+	mx.Handle("POST /user/{user_id}/cart/checkout", checkout_handler.NewCheckoutHandler(cartService))
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 
 	middleware := middlewares.NewTimerMiddleware(mx)

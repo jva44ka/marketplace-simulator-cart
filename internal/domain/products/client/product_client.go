@@ -71,11 +71,11 @@ func (c *ProductClient) DecreaseProductCount(
 	ctx context.Context,
 	productCountsBySkus map[uint64]uint32) error {
 	req := &pb.DecreaseProductCountRequest{
-		Products: make([]*pb.DecreaseProductCountRequest_IncreaseStockBatch, 0),
+		Products: make([]*pb.DecreaseProductCountRequest_IncreaseProductCountBatch, 0),
 	}
 
 	for sku, count := range productCountsBySkus {
-		req.Products = append(req.Products, &pb.DecreaseProductCountRequest_IncreaseStockBatch{
+		req.Products = append(req.Products, &pb.DecreaseProductCountRequest_IncreaseProductCountBatch{
 			Sku:   sku,
 			Count: count,
 		})
