@@ -47,10 +47,10 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 		Sku: sku,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
+	ctx = metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
 
 	resp, err := c.grpcClient.GetProduct(ctx, req)
 	if err != nil {
@@ -65,4 +65,31 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 	}
 
 	return &product, nil
+}
+
+func (c *ProductClient) DecreaseProductCount(
+	ctx context.Context,
+	productCountsBySkus map[uint64]uint32) error {
+	req := &pb.DecreaseProductCountRequest{
+		Products: make([]*pb.DecreaseProductCountRequest_IncreaseStockBatch, 0),
+	}
+
+	for sku, count := range productCountsBySkus {
+		req.Products = append(req.Products, &pb.DecreaseProductCountRequest_IncreaseStockBatch{
+			Sku:   sku,
+			Count: count,
+		})
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	ctx = metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
+
+	_, err := c.grpcClient.DecreaseProductCount(ctx, req)
+	if err != nil {
+		return fmt.Errorf("ProductClient.DecreaseProductCount: %w", err)
+	}
+
+	return nil
 }
