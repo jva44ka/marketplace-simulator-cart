@@ -74,9 +74,9 @@ func local_request_Products_GetProduct_0(ctx context.Context, marshaler runtime.
 	return msg, metadata, err
 }
 
-func request_Products_IncreaseStock_0(ctx context.Context, marshaler runtime.Marshaler, client ProductsClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_Products_IncreaseProductCount_0(ctx context.Context, marshaler runtime.Marshaler, client ProductsClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
-		protoReq IncreaseStockRequest
+		protoReq IncreaseProductCountRequest
 		metadata runtime.ServerMetadata
 	)
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
@@ -85,25 +85,25 @@ func request_Products_IncreaseStock_0(ctx context.Context, marshaler runtime.Mar
 	if req.Body != nil {
 		_, _ = io.Copy(io.Discard, req.Body)
 	}
-	msg, err := client.IncreaseStock(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.IncreaseProductCount(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 }
 
-func local_request_Products_IncreaseStock_0(ctx context.Context, marshaler runtime.Marshaler, server ProductsServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_Products_IncreaseProductCount_0(ctx context.Context, marshaler runtime.Marshaler, server ProductsServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
-		protoReq IncreaseStockRequest
+		protoReq IncreaseProductCountRequest
 		metadata runtime.ServerMetadata
 	)
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	msg, err := server.IncreaseStock(ctx, &protoReq)
+	msg, err := server.IncreaseProductCount(ctx, &protoReq)
 	return msg, metadata, err
 }
 
-func request_Products_DecreaseStock_0(ctx context.Context, marshaler runtime.Marshaler, client ProductsClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_Products_DecreaseProductCount_0(ctx context.Context, marshaler runtime.Marshaler, client ProductsClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
-		protoReq DecreaseStockRequest
+		protoReq DecreaseProductCountRequest
 		metadata runtime.ServerMetadata
 	)
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
@@ -112,19 +112,19 @@ func request_Products_DecreaseStock_0(ctx context.Context, marshaler runtime.Mar
 	if req.Body != nil {
 		_, _ = io.Copy(io.Discard, req.Body)
 	}
-	msg, err := client.DecreaseStock(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.DecreaseProductCount(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 }
 
-func local_request_Products_DecreaseStock_0(ctx context.Context, marshaler runtime.Marshaler, server ProductsServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func local_request_Products_DecreaseProductCount_0(ctx context.Context, marshaler runtime.Marshaler, server ProductsServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var (
-		protoReq DecreaseStockRequest
+		protoReq DecreaseProductCountRequest
 		metadata runtime.ServerMetadata
 	)
 	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	msg, err := server.DecreaseStock(ctx, &protoReq)
+	msg, err := server.DecreaseProductCount(ctx, &protoReq)
 	return msg, metadata, err
 }
 
@@ -154,45 +154,45 @@ func RegisterProductsHandlerServer(ctx context.Context, mux *runtime.ServeMux, s
 		}
 		forward_Products_GetProduct_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_Products_IncreaseStock_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle(http.MethodPost, pattern_Products_IncreaseProductCount_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/products.Products/IncreaseStock", runtime.WithHTTPPathPattern("/v1/products/increase-stock"))
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/products.Products/IncreaseProductCount", runtime.WithHTTPPathPattern("/v1/products/increase-count"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_Products_IncreaseStock_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_Products_IncreaseProductCount_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		forward_Products_IncreaseStock_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Products_IncreaseProductCount_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_Products_DecreaseStock_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle(http.MethodPost, pattern_Products_DecreaseProductCount_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
 		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/products.Products/DecreaseStock", runtime.WithHTTPPathPattern("/v1/products/decrease-stock"))
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/products.Products/DecreaseProductCount", runtime.WithHTTPPathPattern("/v1/products/decrease-count"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_Products_DecreaseStock_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_Products_DecreaseProductCount_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		forward_Products_DecreaseStock_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Products_DecreaseProductCount_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 
 	return nil
@@ -251,51 +251,51 @@ func RegisterProductsHandlerClient(ctx context.Context, mux *runtime.ServeMux, c
 		}
 		forward_Products_GetProduct_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_Products_IncreaseStock_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle(http.MethodPost, pattern_Products_IncreaseProductCount_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/products.Products/IncreaseStock", runtime.WithHTTPPathPattern("/v1/products/increase-stock"))
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/products.Products/IncreaseProductCount", runtime.WithHTTPPathPattern("/v1/products/increase-count"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Products_IncreaseStock_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Products_IncreaseProductCount_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		forward_Products_IncreaseStock_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Products_IncreaseProductCount_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
-	mux.Handle(http.MethodPost, pattern_Products_DecreaseStock_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle(http.MethodPost, pattern_Products_DecreaseProductCount_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
-		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/products.Products/DecreaseStock", runtime.WithHTTPPathPattern("/v1/products/decrease-stock"))
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/products.Products/DecreaseProductCount", runtime.WithHTTPPathPattern("/v1/products/decrease-count"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Products_DecreaseStock_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Products_DecreaseProductCount_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		forward_Products_DecreaseStock_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Products_DecreaseProductCount_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
 	return nil
 }
 
 var (
-	pattern_Products_GetProduct_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "products", "sku"}, ""))
-	pattern_Products_IncreaseStock_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "products", "increase-stock"}, ""))
-	pattern_Products_DecreaseStock_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "products", "decrease-stock"}, ""))
+	pattern_Products_GetProduct_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "products", "sku"}, ""))
+	pattern_Products_IncreaseProductCount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "products", "increase-count"}, ""))
+	pattern_Products_DecreaseProductCount_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "products", "decrease-count"}, ""))
 )
 
 var (
-	forward_Products_GetProduct_0    = runtime.ForwardResponseMessage
-	forward_Products_IncreaseStock_0 = runtime.ForwardResponseMessage
-	forward_Products_DecreaseStock_0 = runtime.ForwardResponseMessage
+	forward_Products_GetProduct_0           = runtime.ForwardResponseMessage
+	forward_Products_IncreaseProductCount_0 = runtime.ForwardResponseMessage
+	forward_Products_DecreaseProductCount_0 = runtime.ForwardResponseMessage
 )
