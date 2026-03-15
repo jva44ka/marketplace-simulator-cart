@@ -11,7 +11,7 @@ import (
 )
 
 type CartService interface {
-	GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, error)
+	GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error)
 }
 
 type GetReviewsBySkuHandler struct {
@@ -45,19 +45,23 @@ func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	cartItems, err := h.cartService.GetItemsByUserId(r.Context(), userId)
+	cartItems, totalPrice, err := h.cartService.GetItemsByUserId(r.Context(), userId)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	response := GetReviewsResponse{CartItems: make([]CartItemResponse, 0, len(cartItems))}
+	response := GetReviewsResponse{
+		CartItems:  make([]CartItemResponse, 0, len(cartItems)),
+		TotalPrice: totalPrice,
+	}
 	for _, cartItem := range cartItems {
 		response.CartItems = append(response.CartItems, CartItemResponse{
-			Id:          cartItem.Id,
-			SkuId:       cartItem.Product.Sku,
-			ProductName: cartItem.Product.Name,
-			Count:       cartItem.Count,
+			Id:    cartItem.Id,
+			Sku:   cartItem.Product.Sku,
+			Name:  cartItem.Product.Name,
+			Price: cartItem.Product.Price,
+			Count: cartItem.Count,
 		})
 	}
 

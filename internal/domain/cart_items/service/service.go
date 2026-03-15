@@ -146,48 +146,55 @@ func (s *CartService) RemoveAllProducts(ctx context.Context, userId uuid.UUID) e
 	return nil
 }
 
-func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, error) {
+func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error) {
 	if userId == uuid.Nil {
-		return nil, errors.New("userId must be not Nil")
+		return nil, 0.0, errors.New("userId must be not Nil")
 	}
 
 	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
 	if err != nil {
-		return nil, fmt.Errorf("cartRepository.GetCartItemsByUserId :%w", err)
+		return nil, 0.0, fmt.Errorf("cartRepository.GetCartItemsByUserId :%w", err)
 	}
 
-	return cartItems, nil
+	totalPrice := 0.0
+	for _, cartItem := range cartItems {
+		totalPrice += cartItem.Product.Price
+	}
+
+	return cartItems, totalPrice, nil
 }
 
-func (s *CartService) Checkout(ctx context.Context, userId uuid.UUID) error {
+func (s *CartService) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
 	if userId == uuid.Nil {
-		return errors.New("user_id must be not nil")
+		return 0.0, errors.New("user_id must be not nil")
 	}
 
 	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
 	if err != nil {
-		return fmt.Errorf("cartRepository.GetCartItemsByUserId :%w", err)
+		return 0.0, fmt.Errorf("cartRepository.GetCartItemsByUserId :%w", err)
 	}
 
 	if len(cartItems) == 0 {
-		return errors.New("cartItems is empty")
+		return 0.0, errors.New("cartItems is empty")
 	}
 
 	productCountsBySku := map[uint64]uint32{}
+	totalPrice := 0.0
 	for _, cartItem := range cartItems {
 		productCountsBySku[cartItem.Product.Sku] = cartItem.Count
+		totalPrice += cartItem.Product.Price
 	}
 
 	//TODO сделать аутбокс для похода в products
 	err = s.productClient.DecreaseProductCount(ctx, productCountsBySku)
 	if err != nil {
-		return fmt.Errorf("productClient.DecreaseProductCount :%w", err)
+		return 0.0, fmt.Errorf("productClient.DecreaseProductCount :%w", err)
 	}
 
 	err = s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId)
 	if err != nil {
-		return fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId :%w", err)
+		return 0.0, fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId :%w", err)
 	}
 
-	return nil
+	return totalPrice, nil
 }

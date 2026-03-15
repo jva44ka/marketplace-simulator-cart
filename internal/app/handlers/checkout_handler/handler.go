@@ -10,7 +10,7 @@ import (
 )
 
 type CartService interface {
-	Checkout(ctx context.Context, userId uuid.UUID) error
+	Checkout(ctx context.Context, userId uuid.UUID) (float64, error)
 }
 
 type CheckoutHandler struct {
@@ -42,13 +42,17 @@ func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.cartService.Checkout(r.Context(), userId)
+	totalPrice, err := h.cartService.Checkout(r.Context(), userId)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	httpPkg.WriteSuccessEmptyResponse(w)
+	response := CheckoutResponse{
+		TotalPrice: totalPrice,
+	}
+
+	httpPkg.WriteSuccessResponse(w, response)
 }
 
 func parseUserId(r *http.Request) (uuid.UUID, error) {
