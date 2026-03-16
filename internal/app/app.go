@@ -12,6 +12,7 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	httpSwagger "github.com/swaggo/http-swagger"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/round_trippers"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
 )
 
 type App struct {
@@ -84,9 +86,9 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 		return nil, fmt.Errorf("pgxpool.New: %w", err)
 	}
 
-	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool)
-
-	cartRepository := cartItemsRepositoryPkg.NewPgxCartItemRepository(pool)
+	dbMetrics := metrics.NewDbMetrics()
+	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool, dbMetrics)
+	cartRepository := cartItemsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
 	cartService := cartItemsServicePkg.NewCartService(cartRepository, productClient, productRepository)
 
 	mx := http.NewServeMux()
@@ -96,8 +98,7 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 	mx.Handle("DELETE /user/{user_id}/cart", clean_cart_handler.NewCleanCartHandler(cartService))
 	mx.Handle("POST /user/{user_id}/cart/checkout", checkout_handler.NewCheckoutHandler(cartService))
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
+	mx.Handle("/metrics", promhttp.Handler())
 
-	middleware := middlewares.NewTimerMiddleware(mx)
-
-	return middleware, nil
+	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), nil
 }
