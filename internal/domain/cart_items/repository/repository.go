@@ -50,9 +50,7 @@ ORDER BY ci.id DESC`
 
 	rows, err := r.pool.Query(ctx, query, userId)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, model.ErrCartItemsNotFound
-		}
+		return nil, fmt.Errorf("PgxCartItemRepository.GetCartItemsByUserId: %w", err)
 	}
 
 	var cartItemRows []CartItemRow

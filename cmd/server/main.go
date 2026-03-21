@@ -2,21 +2,23 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 
 	appPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/app"
 )
 
 func main() {
-	fmt.Println("app starting")
+	slog.Info("app starting")
 
 	app, err := appPkg.NewApp(os.Getenv("CONFIG_PATH"))
 	if err != nil {
-		panic(err)
+		slog.Error("failed to create app", "err", err)
+		os.Exit(1)
 	}
 
 	if err = app.ListenAndServe(); err != nil {
-		panic(err)
+		slog.Error("app stopped", "err", err)
+		os.Exit(1)
 	}
 }

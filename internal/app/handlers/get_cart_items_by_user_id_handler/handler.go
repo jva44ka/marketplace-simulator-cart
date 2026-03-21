@@ -2,7 +2,6 @@ package get_cart_items_by_user_id_handler
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -14,12 +13,21 @@ type CartService interface {
 	GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error)
 }
 
-type GetReviewsBySkuHandler struct {
-	cartService CartService
+type Validator interface {
+	GetValidatedSku(skuRaw string) (uint64, error)
+	GetValidatedUserId(userIdRaw string) (uuid.UUID, error)
 }
 
-func NewGetCartItemsByUserIdHandler(cartService CartService) *GetReviewsBySkuHandler {
-	return &GetReviewsBySkuHandler{cartService: cartService}
+type GetReviewsBySkuHandler struct {
+	cartService CartService
+	validator   Validator
+}
+
+func NewGetCartItemsByUserIdHandler(cartService CartService, validator Validator) *GetReviewsBySkuHandler {
+	return &GetReviewsBySkuHandler{
+		cartService: cartService,
+		validator:   validator,
+	}
 }
 
 // @Summary      Получить содержимое корзины
@@ -34,20 +42,16 @@ func NewGetCartItemsByUserIdHandler(cartService CartService) *GetReviewsBySkuHan
 // @Failure      404  {object}  httpPkg.ErrorResponse
 // @Router       /user/{user_id}/cart [get]
 func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	userId, err := parseUserId(r)
+	userIdRaw := r.PathValue("user_id")
+	userId, err := h.validator.GetValidatedUserId(userIdRaw)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	if userId == uuid.Nil {
-		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, "userId must be not Nil")
-		return
-	}
-
 	cartItems, totalPrice, err := h.cartService.GetItemsByUserId(r.Context(), userId)
 	if err != nil {
-		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
+		httpPkg.WriteServiceError(w, err)
 		return
 	}
 
@@ -67,14 +71,4 @@ func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 	httpPkg.WriteSuccessResponse(w, response)
 	return
-}
-
-func parseUserId(r *http.Request) (uuid.UUID, error) {
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
-	if err != nil {
-		return uuid.Nil, errors.New("user_id must be valid uuid")
-	}
-
-	return userId, nil
 }

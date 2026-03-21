@@ -53,9 +53,6 @@ ORDER BY sku DESC`
 
 	rows, err := r.pool.Query(ctx, query, skus)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, model.ErrProductsNotFound
-		}
 		r.metrics.ReportRequest("GetProductsBySku", "error")
 		return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 	}

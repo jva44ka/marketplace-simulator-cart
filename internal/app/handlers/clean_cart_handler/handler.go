@@ -14,12 +14,21 @@ type CartService interface {
 	RemoveAllProducts(ctx context.Context, userId uuid.UUID) error
 }
 
-type CleanCartHandler struct {
-	cartService CartService
+type Validator interface {
+	GetValidatedSku(skuRaw string) (uint64, error)
+	GetValidatedUserId(userIdRaw string) (uuid.UUID, error)
 }
 
-func NewCleanCartHandler(cartService CartService) *CleanCartHandler {
-	return &CleanCartHandler{cartService: cartService}
+type CleanCartHandler struct {
+	cartService CartService
+	validator   Validator
+}
+
+func NewCleanCartHandler(cartService CartService, validator Validator) *CleanCartHandler {
+	return &CleanCartHandler{
+		cartService: cartService,
+		validator:   validator,
+	}
 }
 
 // @Summary      Очистить корзину пользователя
@@ -35,7 +44,8 @@ func NewCleanCartHandler(cartService CartService) *CleanCartHandler {
 func (h *CleanCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	userId, err := parseUserId(r)
+	userIdRaw := r.PathValue("user_id")
+	userId, err := h.validator.GetValidatedUserId(userIdRaw)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -43,8 +53,7 @@ func (h *CleanCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	err = h.cartService.RemoveAllProducts(r.Context(), userId)
 	if err != nil {
-		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
-
+		httpPkg.WriteServiceError(w, err)
 		return
 	}
 
@@ -65,14 +74,4 @@ func parseSku(r *http.Request) (int, error) {
 	}
 
 	return sku, nil
-}
-
-func parseUserId(r *http.Request) (uuid.UUID, error) {
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
-	if err != nil {
-		return uuid.Nil, errors.New("user_id must be valid uuid")
-	}
-
-	return userId, nil
 }

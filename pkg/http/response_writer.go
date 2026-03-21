@@ -2,8 +2,12 @@ package http
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
+	"log/slog"
 	"net/http"
+
+	errors2 "github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
+	domain_errors "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
 )
 
 func WriteSuccessResponse(w http.ResponseWriter, response any) {
@@ -11,7 +15,7 @@ func WriteSuccessResponse(w http.ResponseWriter, response any) {
 	w.Header().Add("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(&response); err != nil {
-		fmt.Println("json.Encode failed")
+		slog.Error("json.Encode failed", "err", err)
 	}
 }
 
@@ -25,6 +29,21 @@ func WriteErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Add("Content-Type", "application/json")
 
 	if err := json.NewEncoder(w).Encode(&ErrorResponse{Message: message}); err != nil {
-		fmt.Println("json.Encode failed")
+		slog.Error("json.Encode failed", "err", err)
+	}
+}
+
+func WriteServiceError(w http.ResponseWriter, err error) {
+	var valErr *errors2.ValidationError
+	switch {
+	case errors.As(err, &valErr):
+		WriteErrorResponse(w, http.StatusBadRequest, valErr.Error())
+	case errors.Is(err, domain_errors.ErrProductNotFound), errors.Is(err, domain_errors.ErrCartItemsNotFound):
+		WriteErrorResponse(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain_errors.ErrCartEmpty),
+		errors.Is(err, domain_errors.ErrProductsCountMustBeGreaterThanNull):
+		WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	default:
+		WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 	}
 }

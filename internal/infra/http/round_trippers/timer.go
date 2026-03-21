@@ -1,7 +1,7 @@
 package round_trippers
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -16,7 +16,7 @@ func NewTimerRoundTipper(rt http.RoundTripper) http.RoundTripper {
 
 func (trp *TimerRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 	defer func(now time.Time) {
-		fmt.Printf("SENT %s spent %s", r.URL.String(), time.Since(now))
+		slog.Info("outgoing request", "url", r.URL.String(), "duration", time.Since(now))
 	}(time.Now())
 
 	return trp.rt.RoundTrip(r)

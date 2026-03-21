@@ -3,9 +3,7 @@ package add_products_to_cart_handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
 	httpPkg "github.com/jva44ka/ozon-simulator-go-cart/pkg/http"
@@ -15,12 +13,21 @@ type CartService interface {
 	AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error
 }
 
-type AddProductsToCartHandler struct {
-	cartService CartService
+type Validator interface {
+	GetValidatedSku(skuRaw string) (uint64, error)
+	GetValidatedUserId(userIdRaw string) (uuid.UUID, error)
 }
 
-func NewAddProductsToCartHandler(cartService CartService) *AddProductsToCartHandler {
-	return &AddProductsToCartHandler{cartService: cartService}
+type AddProductsToCartHandler struct {
+	cartService CartService
+	validator   Validator
+}
+
+func NewAddProductsToCartHandler(cartService CartService, validator Validator) *AddProductsToCartHandler {
+	return &AddProductsToCartHandler{
+		cartService: cartService,
+		validator:   validator,
+	}
 }
 
 // @Summary      Добавить товар в корзину
@@ -41,13 +48,15 @@ func NewAddProductsToCartHandler(cartService CartService) *AddProductsToCartHand
 func (h *AddProductsToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	sku, err := parseSku(r)
+	skuRaw := r.PathValue("sku")
+	sku, err := h.validator.GetValidatedSku(skuRaw)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	userId, err := parseUserId(r)
+	userIdRaw := r.PathValue("user_id")
+	userId, err := h.validator.GetValidatedUserId(userIdRaw)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -62,34 +71,10 @@ func (h *AddProductsToCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	err = h.cartService.AddProduct(r.Context(), userId, uint64(sku), request.Count)
 	if err != nil {
-		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
+		httpPkg.WriteServiceError(w, err)
 		return
 	}
 
 	httpPkg.WriteSuccessEmptyResponse(w)
 	return
-}
-
-func parseSku(r *http.Request) (int, error) {
-	skuRaw := r.PathValue("sku")
-	sku, err := strconv.Atoi(skuRaw)
-	if err != nil {
-		return 0, errors.New("sku must be a number")
-	}
-
-	if sku < 1 {
-		return 0, errors.New("sku must be more than zero")
-	}
-
-	return sku, nil
-}
-
-func parseUserId(r *http.Request) (uuid.UUID, error) {
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
-	if err != nil {
-		return uuid.Nil, errors.New("user_id must be valid uuid")
-	}
-
-	return userId, nil
 }

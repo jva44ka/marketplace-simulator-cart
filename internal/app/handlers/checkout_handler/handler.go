@@ -2,7 +2,6 @@ package checkout_handler
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -13,12 +12,21 @@ type CartService interface {
 	Checkout(ctx context.Context, userId uuid.UUID) (float64, error)
 }
 
-type CheckoutHandler struct {
-	cartService CartService
+type Validator interface {
+	GetValidatedSku(skuRaw string) (uint64, error)
+	GetValidatedUserId(userIdRaw string) (uuid.UUID, error)
 }
 
-func NewCheckoutHandler(cartService CartService) *CheckoutHandler {
-	return &CheckoutHandler{cartService: cartService}
+type CheckoutHandler struct {
+	cartService CartService
+	validator   Validator
+}
+
+func NewCheckoutHandler(cartService CartService, validator Validator) *CheckoutHandler {
+	return &CheckoutHandler{
+		cartService: cartService,
+		validator:   validator,
+	}
 }
 
 // @Summary      Оформить заказ
@@ -36,7 +44,8 @@ func NewCheckoutHandler(cartService CartService) *CheckoutHandler {
 func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	userId, err := parseUserId(r)
+	userIdRaw := r.PathValue("user_id")
+	userId, err := h.validator.GetValidatedUserId(userIdRaw)
 	if err != nil {
 		httpPkg.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -44,7 +53,7 @@ func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	totalPrice, err := h.cartService.Checkout(r.Context(), userId)
 	if err != nil {
-		httpPkg.WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
+		httpPkg.WriteServiceError(w, err)
 		return
 	}
 
@@ -53,14 +62,4 @@ func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpPkg.WriteSuccessResponse(w, response)
-}
-
-func parseUserId(r *http.Request) (uuid.UUID, error) {
-	userIdRaw := r.PathValue("user_id")
-	userId, err := uuid.Parse(userIdRaw)
-	if err != nil {
-		return uuid.Nil, errors.New("user_id must be valid uuid")
-	}
-
-	return userId, nil
 }

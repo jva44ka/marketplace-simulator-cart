@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -40,5 +41,19 @@ func (m *TimerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		pattern = r.URL.Path
 	}
 
-	m.metrics.ReportRequestInfo(pattern, strconv.Itoa(rec.status), time.Since(start))
+	duration := time.Since(start)
+	m.metrics.ReportRequestInfo(pattern, strconv.Itoa(rec.status), duration)
+	logRequest(r, pattern, rec.status, duration)
+}
+
+func logRequest(r *http.Request, pattern string, status int, duration time.Duration) {
+	args := []any{"method", r.Method, "pattern", pattern, "status", status, "duration", duration}
+	switch {
+	case status >= 500:
+		slog.ErrorContext(r.Context(), "request failed", args...)
+	case status >= 400:
+		slog.WarnContext(r.Context(), "request failed", args...)
+	default:
+		slog.InfoContext(r.Context(), "request", args...)
+	}
 }
