@@ -1,27 +1,44 @@
 package middlewares
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 )
 
-type TimerMiddleware struct {
-	h http.Handler
+type Metrics interface {
+	ReportRequestInfo(methodName string, code string, duration time.Duration)
 }
 
-func NewTimerMiddleware(h http.Handler) http.Handler {
-	return &TimerMiddleware{h: h}
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+type TimerMiddleware struct {
+	h       http.Handler
+	metrics Metrics
+}
+
+func NewTimerMiddleware(h http.Handler, m Metrics) http.Handler {
+	return &TimerMiddleware{h: h, metrics: m}
 }
 
 func (m *TimerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer func(now time.Time) {
-		fmt.Printf("%s spent %s", r.URL.String(), time.Since(now))
-	}(time.Now())
+	start := time.Now()
+	rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
-	//body, err := io.ReadAll(r.Body)
-	// Replace the body with a new reader after reading from the original
-	//r.Body = io.NopCloser(bytes.NewBuffer(body))
+	m.h.ServeHTTP(rec, r)
 
-	m.h.ServeHTTP(w, r)
+	pattern := r.Pattern
+	if pattern == "" {
+		pattern = r.URL.Path
+	}
+
+	m.metrics.ReportRequestInfo(pattern, strconv.Itoa(rec.status), time.Since(start))
 }

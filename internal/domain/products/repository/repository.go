@@ -10,12 +10,17 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
 )
 
-type PgxProductRepository struct {
-	pool *pgxpool.Pool
+type Metrics interface {
+	ReportRequest(method, status string)
 }
 
-func NewPgxProductRepository(pool *pgxpool.Pool) *PgxProductRepository {
-	return &PgxProductRepository{pool: pool}
+type PgxProductRepository struct {
+	pool    *pgxpool.Pool
+	metrics Metrics
+}
+
+func NewPgxProductRepository(pool *pgxpool.Pool, metrics Metrics) *PgxProductRepository {
+	return &PgxProductRepository{pool: pool, metrics: metrics}
 }
 
 type ProductRow struct {
@@ -42,7 +47,7 @@ func (r *PgxProductRepository) GetProductBySku(ctx context.Context, sku uint64) 
 func (r *PgxProductRepository) GetProductsBySku(ctx context.Context, skus []uint64) ([]model.Product, error) {
 	const query = `
 SELECT sku, price, name
-FROM products 
+FROM products
 WHERE sku = ANY ($1)
 ORDER BY sku DESC`
 
@@ -51,7 +56,7 @@ ORDER BY sku DESC`
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, model.ErrProductsNotFound
 		}
-
+		r.metrics.ReportRequest("GetProductsBySku", "error")
 		return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 	}
 
@@ -64,6 +69,7 @@ ORDER BY sku DESC`
 			&ProductRow.Name)
 
 		if err != nil {
+			r.metrics.ReportRequest("GetProductsBySku", "error")
 			return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 		}
 
@@ -82,14 +88,15 @@ ORDER BY sku DESC`
 
 	defer rows.Close()
 
+	r.metrics.ReportRequest("GetProductsBySku", "success")
 	return result, nil
 }
 
 func (r *PgxProductRepository) AddProduct(ctx context.Context, product model.Product) (*model.Product, error) {
 	const query = `
-INSERT INTO 
-    products (sku, price, name) 
-VALUES 
+INSERT INTO
+    products (sku, price, name)
+VALUES
     ($1, $2, $3);`
 
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
@@ -97,8 +104,10 @@ VALUES
 		return err
 	})
 	if err != nil {
+		r.metrics.ReportRequest("AddProduct", "error")
 		return nil, fmt.Errorf("failed to insert product: %w", err)
 	}
 
+	r.metrics.ReportRequest("AddProduct", "success")
 	return &product, nil
 }
