@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/metadata"
-
 	pb "github.com/jva44ka/ozon-simulator-go-cart/internal/app/gen/ozon-simulator-go-products/api/v1/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -54,6 +55,12 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 
 	resp, err := c.grpcClient.GetProduct(ctx, req)
 	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return nil, model.ErrProductNotFound
+			}
+		}
 		return nil, fmt.Errorf("ProductClient.GetProduct: %w", err)
 	}
 
@@ -88,6 +95,14 @@ func (c *ProductClient) DecreaseProductCount(
 
 	_, err := c.grpcClient.DecreaseProductCount(ctx, req)
 	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return model.ErrProductNotFound
+			case codes.FailedPrecondition:
+				return model.ErrInsufficientStock
+			}
+		}
 		return fmt.Errorf("ProductClient.DecreaseProductCount: %w", err)
 	}
 

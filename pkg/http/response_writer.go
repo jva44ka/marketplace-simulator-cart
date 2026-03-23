@@ -43,6 +43,8 @@ func WriteServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, domain_errors.ErrCartEmpty),
 		errors.Is(err, domain_errors.ErrProductsCountMustBeGreaterThanNull):
 		WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, domain_errors.ErrInsufficientStock):
+		WriteErrorResponse(w, http.StatusConflict, err.Error())
 	default:
 		WriteErrorResponse(w, http.StatusInternalServerError, err.Error())
 	}

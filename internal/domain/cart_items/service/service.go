@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	errors2 "github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
 )
 
@@ -44,29 +43,35 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		return model.ErrProductsCountMustBeGreaterThanNull
 	}
 
-	//Такой продукт уже есть в корзине - прибавляем количество
-	// TODO: refactor this
+	// Всегда запрашиваем актуальный остаток из мастер-системы
+	productInMasterSystem, err := s.productClient.GetProductBySku(ctx, sku)
+	if err != nil {
+		return fmt.Errorf("productClient.GetProductBySku: %w", err)
+	}
+
 	existingCartItem, err := s.cartRepository.GetCartItem(ctx, userId, sku)
 	if err != nil && !errors.Is(err, model.ErrCartItemsNotFound) {
 		return fmt.Errorf("cartRepository.GetCartItem: %w", err)
 	}
-	if existingCartItem != nil {
-		resultCount := existingCartItem.Count + count
-		err = s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
-			Count: resultCount,
-		})
 
+	alreadyInCart := uint32(0)
+	if existingCartItem != nil {
+		alreadyInCart = existingCartItem.Count
+	}
+
+	if alreadyInCart+count > productInMasterSystem.Count {
+		return model.ErrInsufficientStock
+	}
+
+	// Товар уже есть в корзине — прибавляем количество
+	if existingCartItem != nil {
+		err = s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
+			Count: alreadyInCart + count,
+		})
 		if err != nil {
 			return fmt.Errorf("cartRepository.UpdateCartItem: %w", err)
 		}
-
 		return nil
-	}
-
-	// Продукта нет в корзине - запрашиваем сначала в мастер-системе продуктов, если нет - ошибка
-	productInMasterSystem, err := s.productClient.GetProductBySku(ctx, sku)
-	if err != nil {
-		return fmt.Errorf("productClient.GetProductBySku: %w", err)
 	}
 
 	// Теперь смотрим у себя в базе есть ли этот продукт, если нет - добавляем
@@ -106,14 +111,6 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 }
 
 func (s *CartService) RemoveProduct(ctx context.Context, userId uuid.UUID, sku uint64) error {
-	if sku < 1 {
-		return errors2.NewValidationError("sku must be greater than zero")
-	}
-
-	if userId == uuid.Nil {
-		return errors2.NewValidationError("user_id must be not nil")
-	}
-
 	err := s.cartRepository.RemoveCartItem(ctx, userId, sku)
 	if err != nil {
 		return fmt.Errorf("cartRepository.RemoveProduct :%w", err)
@@ -123,10 +120,6 @@ func (s *CartService) RemoveProduct(ctx context.Context, userId uuid.UUID, sku u
 }
 
 func (s *CartService) RemoveAllProducts(ctx context.Context, userId uuid.UUID) error {
-	if userId == uuid.Nil {
-		return errors2.NewValidationError("user_id must be not nil")
-	}
-
 	err := s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId)
 	if err != nil {
 		return fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId :%w", err)
@@ -136,10 +129,6 @@ func (s *CartService) RemoveAllProducts(ctx context.Context, userId uuid.UUID) e
 }
 
 func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error) {
-	if userId == uuid.Nil {
-		return nil, 0.0, errors2.NewValidationError("user_id must be not nil")
-	}
-
 	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
 	if err != nil {
 		return nil, 0.0, fmt.Errorf("cartRepository.GetCartItemsByUserId: %w", err)
@@ -154,10 +143,6 @@ func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([
 }
 
 func (s *CartService) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
-	if userId == uuid.Nil {
-		return 0.0, errors2.NewValidationError("user_id must be not nil")
-	}
-
 	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
 	if err != nil {
 		return 0.0, fmt.Errorf("cartRepository.GetCartItemsByUserId: %w", err)
