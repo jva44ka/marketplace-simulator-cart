@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
@@ -25,17 +26,30 @@ type ProductRepository interface {
 
 type ProductClient interface {
 	GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error)
-	DecreaseProductCount(ctx context.Context, productCountsBySkus map[uint64]uint32) error
+	ReserveProductCount(ctx context.Context, productCountsBySkus map[uint64]uint32, reservedUntil time.Time) (map[uint64]int64, error)
+	ReleaseReservation(ctx context.Context, reservationIds []int64) error
+	ConfirmReservation(ctx context.Context, reservationIds []int64) error
 }
 
 type CartService struct {
 	cartRepository    CartRepository
 	productClient     ProductClient
 	productRepository ProductRepository
+	reservationTTL    time.Duration
 }
 
-func NewCartService(cartRepository CartRepository, productService ProductClient, productRepository ProductRepository) *CartService {
-	return &CartService{cartRepository: cartRepository, productClient: productService, productRepository: productRepository}
+func NewCartService(
+	cartRepository CartRepository,
+	productClient ProductClient,
+	productRepository ProductRepository,
+	reservationTTL time.Duration,
+) *CartService {
+	return &CartService{
+		cartRepository:    cartRepository,
+		productClient:     productClient,
+		productRepository: productRepository,
+		reservationTTL:    reservationTTL,
+	}
 }
 
 func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {
@@ -43,7 +57,6 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		return model.ErrProductsCountMustBeGreaterThanNull
 	}
 
-	// Всегда запрашиваем актуальный остаток из мастер-системы
 	productInMasterSystem, err := s.productClient.GetProductBySku(ctx, sku)
 	if err != nil {
 		return fmt.Errorf("productClient.GetProductBySku: %w", err)
@@ -54,27 +67,35 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		return fmt.Errorf("cartRepository.GetCartItem: %w", err)
 	}
 
-	alreadyInCart := uint32(0)
-	if existingCartItem != nil {
-		alreadyInCart = existingCartItem.Count
-	}
+	reservedUntil := time.Now().Add(s.reservationTTL)
 
-	if alreadyInCart+count > productInMasterSystem.Count {
-		return model.ErrInsufficientStock
-	}
-
-	// Товар уже есть в корзине — прибавляем количество
 	if existingCartItem != nil {
-		err = s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
-			Count: alreadyInCart + count,
-		})
-		if err != nil {
-			return fmt.Errorf("cartRepository.UpdateCartItem: %w", err)
+		// Освобождаем старую резервацию, создаём новую на суммарный count
+		if existingCartItem.ReservationId != 0 {
+			if err = s.productClient.ReleaseReservation(ctx, []int64{existingCartItem.ReservationId}); err != nil {
+				return fmt.Errorf("productClient.ReleaseReservation: %w", err)
+			}
 		}
-		return nil
+
+		newTotal := existingCartItem.Count + count
+		reservationIds, err := s.productClient.ReserveProductCount(ctx, map[uint64]uint32{sku: newTotal}, reservedUntil)
+		if err != nil {
+			return fmt.Errorf("productClient.ReserveProductCount: %w", err)
+		}
+
+		return s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
+			Count:         newTotal,
+			ReservationId: reservationIds[sku],
+		})
 	}
 
-	// Теперь смотрим у себя в базе есть ли этот продукт, если нет - добавляем
+	// Новый элемент корзины: резервируем и добавляем
+	reservationIds, err := s.productClient.ReserveProductCount(ctx, map[uint64]uint32{sku: count}, reservedUntil)
+	if err != nil {
+		return fmt.Errorf("productClient.ReserveProductCount: %w", err)
+	}
+
+	// Убеждаемся что продукт есть в локальной БД
 	_, err = s.productRepository.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
@@ -83,7 +104,6 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 				Price: productInMasterSystem.Price,
 				Name:  productInMasterSystem.Name,
 			})
-
 			if err != nil {
 				return fmt.Errorf("productRepository.AddProduct: %w", err)
 			}
@@ -92,40 +112,55 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		}
 	}
 
-	cartItem := model.CartItem{
-		UserId: userId,
-		Count:  count,
+	_, err = s.cartRepository.AddCartItem(ctx, model.CartItem{
+		UserId:        userId,
+		Count:         count,
+		ReservationId: reservationIds[sku],
 		Product: model.Product{
 			Sku:   sku,
 			Price: productInMasterSystem.Price,
 			Name:  productInMasterSystem.Name,
 		},
-	}
-
-	_, err = s.cartRepository.AddCartItem(ctx, cartItem)
-	if err != nil {
-		return fmt.Errorf("cartRepository.AddCartItem :%w", err)
-	}
-
-	return nil
+	})
+	return err
 }
 
 func (s *CartService) RemoveProduct(ctx context.Context, userId uuid.UUID, sku uint64) error {
-	err := s.cartRepository.RemoveCartItem(ctx, userId, sku)
+	cartItem, err := s.cartRepository.GetCartItem(ctx, userId, sku)
 	if err != nil {
-		return fmt.Errorf("cartRepository.RemoveProduct :%w", err)
+		return fmt.Errorf("cartRepository.GetCartItem: %w", err)
 	}
 
-	return nil
+	if cartItem.ReservationId != 0 {
+		if err = s.productClient.ReleaseReservation(ctx, []int64{cartItem.ReservationId}); err != nil {
+			return fmt.Errorf("productClient.ReleaseReservation: %w", err)
+		}
+	}
+
+	return s.cartRepository.RemoveCartItem(ctx, userId, sku)
 }
 
 func (s *CartService) RemoveAllProducts(ctx context.Context, userId uuid.UUID) error {
-	err := s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId)
+	cartItems, err := s.cartRepository.GetCartItemsByUserId(ctx, userId)
 	if err != nil {
-		return fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId :%w", err)
+		return fmt.Errorf("cartRepository.GetCartItemsByUserId: %w", err)
 	}
 
-	return nil
+	if len(cartItems) > 0 {
+		ids := make([]int64, 0, len(cartItems))
+		for _, item := range cartItems {
+			if item.ReservationId != 0 {
+				ids = append(ids, item.ReservationId)
+			}
+		}
+		if len(ids) > 0 {
+			if err = s.productClient.ReleaseReservation(ctx, ids); err != nil {
+				return fmt.Errorf("productClient.ReleaseReservation: %w", err)
+			}
+		}
+	}
+
+	return s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId)
 }
 
 func (s *CartService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error) {
@@ -152,22 +187,21 @@ func (s *CartService) Checkout(ctx context.Context, userId uuid.UUID) (float64, 
 		return 0.0, model.ErrCartEmpty
 	}
 
-	productCountsBySku := map[uint64]uint32{}
+	ids := make([]int64, 0, len(cartItems))
 	totalPrice := 0.0
-	for _, cartItem := range cartItems {
-		productCountsBySku[cartItem.Product.Sku] = cartItem.Count
-		totalPrice += cartItem.Product.Price
+	for _, item := range cartItems {
+		if item.ReservationId != 0 {
+			ids = append(ids, item.ReservationId)
+		}
+		totalPrice += item.Product.Price
 	}
 
-	//TODO сделать аутбокс для похода в products
-	err = s.productClient.DecreaseProductCount(ctx, productCountsBySku)
-	if err != nil {
-		return 0.0, fmt.Errorf("productClient.DecreaseProductCount :%w", err)
+	if err = s.productClient.ConfirmReservation(ctx, ids); err != nil {
+		return 0.0, fmt.Errorf("productClient.ConfirmReservation: %w", err)
 	}
 
-	err = s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId)
-	if err != nil {
-		return 0.0, fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId :%w", err)
+	if err = s.cartRepository.RemoveAllCartItemsByUserId(ctx, userId); err != nil {
+		return 0.0, fmt.Errorf("cartRepository.RemoveAllCartItemsByUserId: %w", err)
 	}
 
 	return totalPrice, nil

@@ -27,6 +27,16 @@ type Config struct {
 		Port     string `yaml:"port"`
 		Name     string `yaml:"name"`
 	} `yaml:"database"`
+
+	Reservation struct {
+		TTL string `yaml:"ttl"`
+	} `yaml:"reservation"`
+
+	Kafka struct {
+		Brokers                 []string `yaml:"brokers"`
+		ReservationExpiredTopic string   `yaml:"reservation-expired-topic"`
+		ConsumerGroup           string   `yaml:"consumer-group"`
+	} `yaml:"kafka"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

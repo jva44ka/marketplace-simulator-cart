@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
 
@@ -17,7 +18,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = app.ListenAndServe(); err != nil {
+	if err = app.ListenAndServe(context.Background()); err != nil {
 		slog.Error("app stopped", "err", err)
 		os.Exit(1)
 	}

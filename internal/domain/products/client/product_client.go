@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
 	pb "github.com/jva44ka/ozon-simulator-go-cart/internal/app/gen/ozon-simulator-go-products/api/v1/proto"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -44,9 +45,7 @@ func NewProductClient(host string, port string, authToken string, timeout string
 }
 
 func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error) {
-	req := &pb.GetProductRequest{
-		Sku: sku,
-	}
+	req := &pb.GetProductRequest{Sku: sku}
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -56,35 +55,37 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 	resp, err := c.grpcClient.GetProduct(ctx, req)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
-			switch st.Code() {
-			case codes.NotFound:
+			if st.Code() == codes.NotFound {
 				return nil, model.ErrProductNotFound
 			}
 		}
 		return nil, fmt.Errorf("ProductClient.GetProduct: %w", err)
 	}
 
-	product := model.Product{
+	return &model.Product{
 		Sku:   resp.Sku,
 		Price: resp.Price,
 		Name:  resp.Name,
 		Count: resp.Count,
-	}
-
-	return &product, nil
+	}, nil
 }
 
-func (c *ProductClient) DecreaseProductCount(
+// ReserveProductCount резервирует товары и возвращает map[sku → reservation_id].
+func (c *ProductClient) ReserveProductCount(
 	ctx context.Context,
-	productCountsBySkus map[uint64]uint32) error {
-	req := &pb.DecreaseProductCountRequest{
-		Products: make([]*pb.DecreaseProductCountRequest_IncreaseProductCountBatch, 0),
+	productCountsBySkus map[uint64]uint32,
+	reservedUntil time.Time,
+) (map[uint64]int64, error) {
+	req := &pb.ReserveProductCountRequest{
+		Products: make([]*pb.ReserveProductCountRequest_ProductCountBatch, 0, len(productCountsBySkus)),
 	}
 
+	ts := timestamppb.New(reservedUntil)
 	for sku, count := range productCountsBySkus {
-		req.Products = append(req.Products, &pb.DecreaseProductCountRequest_IncreaseProductCountBatch{
-			Sku:   sku,
-			Count: count,
+		req.Products = append(req.Products, &pb.ReserveProductCountRequest_ProductCountBatch{
+			Sku:           sku,
+			Count:         count,
+			ReservedUntil: ts,
 		})
 	}
 
@@ -93,7 +94,35 @@ func (c *ProductClient) DecreaseProductCount(
 
 	ctx = metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
 
-	_, err := c.grpcClient.DecreaseProductCount(ctx, req)
+	resp, err := c.grpcClient.ReserveProductCount(ctx, req)
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return nil, model.ErrProductNotFound
+			case codes.FailedPrecondition:
+				return nil, model.ErrInsufficientStock
+			}
+		}
+		return nil, fmt.Errorf("ProductClient.ReserveProductCount: %w", err)
+	}
+
+	result := make(map[uint64]int64, len(resp.Results))
+	for _, r := range resp.Results {
+		result[r.Sku] = r.ReservationId
+	}
+
+	return result, nil
+}
+
+// ReleaseReservation освобождает резервации по их IDs.
+func (c *ProductClient) ReleaseReservation(ctx context.Context, reservationIds []int64) error {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	ctx = metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
+
+	_, err := c.grpcClient.ReleaseReservation(ctx, &pb.ReleaseReservationRequest{ReservationIds: reservationIds})
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
@@ -103,8 +132,32 @@ func (c *ProductClient) DecreaseProductCount(
 				return model.ErrInsufficientStock
 			}
 		}
-		return fmt.Errorf("ProductClient.DecreaseProductCount: %w", err)
+		return fmt.Errorf("ProductClient.ReleaseReservation: %w", err)
 	}
 
 	return nil
 }
+
+// ConfirmReservation подтверждает резервации по их IDs.
+func (c *ProductClient) ConfirmReservation(ctx context.Context, reservationIds []int64) error {
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	ctx = metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
+
+	_, err := c.grpcClient.ConfirmReservation(ctx, &pb.ConfirmReservationRequest{ReservationIds: reservationIds})
+	if err != nil {
+		if st, ok := status.FromError(err); ok {
+			switch st.Code() {
+			case codes.NotFound:
+				return model.ErrProductNotFound
+			case codes.FailedPrecondition:
+				return model.ErrInsufficientStock
+			}
+		}
+		return fmt.Errorf("ProductClient.ConfirmReservation: %w", err)
+	}
+
+	return nil
+}
+
