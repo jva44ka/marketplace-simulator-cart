@@ -12,7 +12,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -70,22 +69,19 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 	}, nil
 }
 
-// ReserveProductCount резервирует товары и возвращает map[sku → reservation_id].
-func (c *ProductClient) ReserveProductCount(
+// ReserveProduct резервирует товары и возвращает map[sku → reservation_id].
+func (c *ProductClient) ReserveProduct(
 	ctx context.Context,
 	productCountsBySkus map[uint64]uint32,
-	reservedUntil time.Time,
 ) (map[uint64]int64, error) {
-	req := &pb.ReserveProductCountRequest{
-		Products: make([]*pb.ReserveProductCountRequest_ProductCountBatch, 0, len(productCountsBySkus)),
+	req := &pb.ReserveProductRequest{
+		Products: make([]*pb.ReserveProductRequest_ProductCountBatch, 0, len(productCountsBySkus)),
 	}
 
-	ts := timestamppb.New(reservedUntil)
 	for sku, count := range productCountsBySkus {
-		req.Products = append(req.Products, &pb.ReserveProductCountRequest_ProductCountBatch{
-			Sku:           sku,
-			Count:         count,
-			ReservedUntil: ts,
+		req.Products = append(req.Products, &pb.ReserveProductRequest_ProductCountBatch{
+			Sku:   sku,
+			Count: count,
 		})
 	}
 
@@ -94,7 +90,7 @@ func (c *ProductClient) ReserveProductCount(
 
 	ctx = metadata.AppendToOutgoingContext(ctx, AuthHeaderKey, c.authToken)
 
-	resp, err := c.grpcClient.ReserveProductCount(ctx, req)
+	resp, err := c.grpcClient.ReserveProduct(ctx, req)
 	if err != nil {
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
@@ -104,7 +100,7 @@ func (c *ProductClient) ReserveProductCount(
 				return nil, model.ErrInsufficientStock
 			}
 		}
-		return nil, fmt.Errorf("ProductClient.ReserveProductCount: %w", err)
+		return nil, fmt.Errorf("ProductClient.ReserveProduct: %w", err)
 	}
 
 	result := make(map[uint64]int64, len(resp.Results))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
@@ -26,7 +25,7 @@ type ProductRepository interface {
 
 type ProductClient interface {
 	GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error)
-	ReserveProductCount(ctx context.Context, productCountsBySkus map[uint64]uint32, reservedUntil time.Time) (map[uint64]int64, error)
+	ReserveProduct(ctx context.Context, productCountsBySkus map[uint64]uint32) (map[uint64]int64, error)
 	ReleaseReservation(ctx context.Context, reservationIds []int64) error
 	ConfirmReservation(ctx context.Context, reservationIds []int64) error
 }
@@ -35,20 +34,17 @@ type CartService struct {
 	cartRepository    CartRepository
 	productClient     ProductClient
 	productRepository ProductRepository
-	reservationTTL    time.Duration
 }
 
 func NewCartService(
 	cartRepository CartRepository,
 	productClient ProductClient,
 	productRepository ProductRepository,
-	reservationTTL time.Duration,
 ) *CartService {
 	return &CartService{
 		cartRepository:    cartRepository,
 		productClient:     productClient,
 		productRepository: productRepository,
-		reservationTTL:    reservationTTL,
 	}
 }
 
@@ -67,8 +63,6 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		return fmt.Errorf("cartRepository.GetCartItem: %w", err)
 	}
 
-	reservedUntil := time.Now().Add(s.reservationTTL)
-
 	if existingCartItem != nil {
 		// Освобождаем старую резервацию, создаём новую на суммарный count
 		if existingCartItem.ReservationId != 0 {
@@ -78,9 +72,9 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 		}
 
 		newTotal := existingCartItem.Count + count
-		reservationIds, err := s.productClient.ReserveProductCount(ctx, map[uint64]uint32{sku: newTotal}, reservedUntil)
+		reservationIds, err := s.productClient.ReserveProduct(ctx, map[uint64]uint32{sku: newTotal})
 		if err != nil {
-			return fmt.Errorf("productClient.ReserveProductCount: %w", err)
+			return fmt.Errorf("productClient.ReserveProduct: %w", err)
 		}
 
 		return s.cartRepository.UpdateCartItem(ctx, existingCartItem.Id, model.CartItem{
@@ -90,9 +84,9 @@ func (s *CartService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint
 	}
 
 	// Новый элемент корзины: резервируем и добавляем
-	reservationIds, err := s.productClient.ReserveProductCount(ctx, map[uint64]uint32{sku: count}, reservedUntil)
+	reservationIds, err := s.productClient.ReserveProduct(ctx, map[uint64]uint32{sku: count})
 	if err != nil {
-		return fmt.Errorf("productClient.ReserveProductCount: %w", err)
+		return fmt.Errorf("productClient.ReserveProduct: %w", err)
 	}
 
 	// Убеждаемся что продукт есть в локальной БД

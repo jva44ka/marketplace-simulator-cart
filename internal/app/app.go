@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/add_products_to_cart_handler"
@@ -93,15 +92,10 @@ func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, err
 		return nil, nil, fmt.Errorf("pgxpool.New: %w", err)
 	}
 
-	reservationTTL, err := time.ParseDuration(config.Reservation.TTL)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse reservation.ttl: %w", err)
-	}
-
 	dbMetrics := metrics.NewDbMetrics()
 	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool, dbMetrics)
 	cartRepository := cartItemsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
-	cartService := cartItemsServicePkg.NewCartService(cartRepository, productClient, productRepository, reservationTTL)
+	cartService := cartItemsServicePkg.NewCartService(cartRepository, productClient, productRepository)
 	validator := validation.Validator{}
 
 	consumer := kafka.NewConsumer(
