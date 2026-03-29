@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/http"
 
@@ -16,33 +15,26 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/round_trippers"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
 	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
 	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
 	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
-
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/kafka"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
 )
 
 type App struct {
-	config   *config.Config
-	server   http.Server
-	consumer *kafka.Consumer
+	config *config.Config
+	server http.Server
 }
 
-func NewApp(configPath string) (*App, error) {
-	configImpl, err := config.LoadConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("config.LoadConfig: %w", err)
-	}
+func NewApp(cfg *config.Config) (*App, error) {
+	app := &App{config: cfg}
 
-	app := &App{config: configImpl}
-
-	app.server.Handler, app.consumer, err = bootstrapHandler(configImpl)
+	var err error
+	app.server.Handler, err = bootstrapHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrapHandler: %w", err)
 	}
@@ -50,12 +42,7 @@ func NewApp(configPath string) (*App, error) {
 	return app, nil
 }
 
-func (app *App) ListenAndServe(ctx context.Context) error {
-	go func() {
-		slog.Info("starting reservation expiry consumer")
-		app.consumer.Run(ctx)
-	}()
-
+func (app *App) ListenAndServe(_ context.Context) error {
 	address := fmt.Sprintf("%s:%s", app.config.Server.Host, app.config.Server.Port)
 
 	l, err := net.Listen("tcp", address)
@@ -66,7 +53,7 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 	return app.server.Serve(l)
 }
 
-func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, error) {
+func bootstrapHandler(config *config.Config) (http.Handler, error) {
 	_ = round_trippers.NewTimerRoundTipper(http.DefaultTransport)
 
 	productClient, err := productsClientPkg.NewProductClient(
@@ -76,7 +63,7 @@ func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, err
 		config.Products.Timeout,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
+		return nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
 	}
 
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf(
@@ -88,7 +75,7 @@ func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, err
 		config.Database.Name,
 	))
 	if err != nil {
-		return nil, nil, fmt.Errorf("pgxpool.New: %w", err)
+		return nil, fmt.Errorf("pgxpool.New: %w", err)
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
@@ -96,13 +83,6 @@ func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, err
 	cartRepository := productsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
 	cartService := cartItemsServicePkg.NewCartItemService(cartRepository, productClient, productRepository)
 	validator := validation.Validator{}
-
-	consumer := kafka.NewConsumer(
-		config.Kafka.Brokers,
-		config.Kafka.ReservationExpiredTopic,
-		config.Kafka.ConsumerGroup,
-		cartService,
-	)
 
 	mx := http.NewServeMux()
 
@@ -119,5 +99,5 @@ func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, err
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 
-	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), consumer, nil
+	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), nil
 }
