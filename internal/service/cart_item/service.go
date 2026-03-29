@@ -12,10 +12,8 @@ type CartItemRepository interface {
 	Update(_ context.Context, id uint64, cartItem model.CartItem) error
 	GetByUserId(_ context.Context, userId uuid.UUID) ([]model.CartItem, error)
 	GetByUserIdAndSku(_ context.Context, userId uuid.UUID, sku uint64) (*model.CartItem, error)
-	GetByReservationId(ctx context.Context, reservationId int64) (*model.CartItem, error)
 	RemoveByUserIdAndSku(_ context.Context, userId uuid.UUID, sku uint64) error
 	RemoveByUserId(_ context.Context, userId uuid.UUID) error
-	RemoveByReservationId(ctx context.Context, reservationId int64) error
 }
 
 type ProductRepository interface {
@@ -31,19 +29,19 @@ type ProductClient interface {
 }
 
 type CartItemService struct {
-	cartRepository    CartItemRepository
-	productClient     ProductClient
-	productRepository ProductRepository
+	cartItemRepository CartItemRepository
+	productClient      ProductClient
+	productRepository  ProductRepository
 }
 
 func NewCartItemService(
-	cartRepository CartItemRepository,
+	cartItemRepository CartItemRepository,
 	productClient ProductClient,
 	productRepository ProductRepository,
 ) *CartItemService {
 	return &CartItemService{
-		cartRepository:    cartRepository,
-		productClient:     productClient,
-		productRepository: productRepository,
+		cartItemRepository: cartItemRepository,
+		productClient:      productClient,
+		productRepository:  productRepository,
 	}
 }

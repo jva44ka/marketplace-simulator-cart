@@ -77,7 +77,6 @@ func createConsumer(configImpl *config.Config) (*kafka.Consumer, error) {
 		configImpl.Kafka.Brokers,
 		reservationTopicConfig.Name,
 		reservationTopicConfig.ConsumerGroup,
-		cartService,
 	)
 	return consumer, nil
 }

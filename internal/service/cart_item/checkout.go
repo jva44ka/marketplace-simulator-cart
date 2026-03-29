@@ -10,7 +10,7 @@ import (
 )
 
 func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
-	cartItems, err := s.cartRepository.GetByUserId(ctx, userId)
+	cartItems, err := s.cartItemRepository.GetByUserId(ctx, userId)
 	if err != nil {
 		return 0.0, fmt.Errorf("cartRepository.GetByUserId: %w", err)
 	}
@@ -31,7 +31,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return 0.0, fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
-	if err = s.cartRepository.RemoveByUserId(ctx, userId); err != nil {
+	if err = s.cartItemRepository.RemoveByUserId(ctx, userId); err != nil {
 		ids := reservationIdsToSlice(reservationIds)
 		if releaseErr := s.productClient.ReleaseReservation(ctx, ids); releaseErr != nil {
 			slog.ErrorContext(ctx, "failed to release reservations after cart remove error", "err", releaseErr)

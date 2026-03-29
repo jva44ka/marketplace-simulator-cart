@@ -5,9 +5,8 @@ import (
 )
 
 type CartItem struct {
-	Id            uint64
-	Product       Product
-	UserId        uuid.UUID
-	Count         uint32
-	ReservationId int64
+	Id      uint64
+	Product Product
+	UserId  uuid.UUID
+	Count   uint32
 }

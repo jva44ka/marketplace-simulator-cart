@@ -25,13 +25,12 @@ func NewPgxCartItemRepository(pool *pgxpool.Pool, metrics CartItemRepositoryMetr
 }
 
 type CartItemRow struct {
-	id            uint64
-	userId        uuid.UUID
-	count         uint32
-	reservationId int64
-	productSku    uint64
-	productPrice  float64
-	productName   string
+	id           uint64
+	userId       uuid.UUID
+	count        uint32
+	productSku   uint64
+	productPrice float64
+	productName  string
 }
 
 func (r *PgxCartItemRepository) GetByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, error) {
@@ -40,7 +39,6 @@ SELECT
     ci.id,
     ci.user_id,
     ci.count,
-    ci.reservation_id,
     p.sku,
     p.price,
     p.name
@@ -62,7 +60,6 @@ ORDER BY ci.id DESC`
 			&row.id,
 			&row.userId,
 			&row.count,
-			&row.reservationId,
 			&row.productSku,
 			&row.productPrice,
 			&row.productName,
@@ -72,10 +69,9 @@ ORDER BY ci.id DESC`
 		}
 
 		item := model.CartItem{
-			Id:            row.id,
-			UserId:        row.userId,
-			Count:         row.count,
-			ReservationId: row.reservationId,
+			Id:     row.id,
+			UserId: row.userId,
+			Count:  row.count,
 			Product: model.Product{
 				Sku:   row.productSku,
 				Name:  row.productName,
@@ -96,7 +92,6 @@ SELECT
     ci.id,
     ci.user_id,
     ci.count,
-    ci.reservation_id,
     p.sku,
     p.price,
     p.name
@@ -111,7 +106,6 @@ WHERE ci.user_id = $1 AND ci.sku_id = $2`
 		&cr.id,
 		&cr.userId,
 		&cr.count,
-		&cr.reservationId,
 		&cr.productSku,
 		&cr.productPrice,
 		&cr.productName,
@@ -126,10 +120,9 @@ WHERE ci.user_id = $1 AND ci.sku_id = $2`
 
 	r.metrics.ReportRequest("GetByUserIdAndSku", "success")
 	item := &model.CartItem{
-		Id:            cr.id,
-		UserId:        cr.userId,
-		Count:         cr.count,
-		ReservationId: cr.reservationId,
+		Id:     cr.id,
+		UserId: cr.userId,
+		Count:  cr.count,
 		Product: model.Product{
 			Sku:   cr.productSku,
 			Name:  cr.productName,
@@ -140,60 +133,11 @@ WHERE ci.user_id = $1 AND ci.sku_id = $2`
 	return item, nil
 }
 
-func (r *PgxCartItemRepository) GetByReservationId(ctx context.Context, reservationId int64) (*model.CartItem, error) {
-	const query = `
-SELECT
-    ci.id,
-    ci.user_id,
-    ci.count,
-    ci.reservation_id,
-    p.sku,
-    p.price,
-    p.name
-FROM cart_items ci
-INNER JOIN products p ON p.sku = ci.sku_id
-WHERE ci.reservation_id = $1`
-
-	row := r.pool.QueryRow(ctx, query, reservationId)
-
-	var cr CartItemRow
-	err := row.Scan(
-		&cr.id,
-		&cr.userId,
-		&cr.count,
-		&cr.reservationId,
-		&cr.productSku,
-		&cr.productPrice,
-		&cr.productName,
-	)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, model.ErrCartItemsNotFound
-		}
-		r.metrics.ReportRequest("GetByReservationId", "error")
-		return nil, fmt.Errorf("PgxCartItemRepository.GetByReservationId: %w", err)
-	}
-
-	r.metrics.ReportRequest("GetByReservationId", "success")
-	item := &model.CartItem{
-		Id:            cr.id,
-		UserId:        cr.userId,
-		Count:         cr.count,
-		ReservationId: cr.reservationId,
-		Product: model.Product{
-			Sku:   cr.productSku,
-			Name:  cr.productName,
-			Price: cr.productPrice,
-		},
-	}
-
-	return item, nil
-}
 
 func (r *PgxCartItemRepository) Create(ctx context.Context, cartItem model.CartItem) (uint64, error) {
 	const query = `
-INSERT INTO cart_items (sku_id, user_id, count, reservation_id)
-VALUES ($1, $2, $3, $4)
+INSERT INTO cart_items (sku_id, user_id, count)
+VALUES ($1, $2, $3)
 RETURNING id`
 
 	var id int64
@@ -202,7 +146,6 @@ RETURNING id`
 			cartItem.Product.Sku,
 			cartItem.UserId,
 			cartItem.Count,
-			cartItem.ReservationId,
 		).Scan(&id)
 	})
 	if err != nil {
@@ -218,12 +161,11 @@ func (r *PgxCartItemRepository) Update(ctx context.Context, id uint64, cartItem 
 	const query = `
 UPDATE cart_items
 SET 
-    count = $2, 
-    reservation_id = $3
+    count = $2
 WHERE id = $1`
 
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query, int64(id), cartItem.Count, cartItem.ReservationId)
+		_, err := tx.Exec(ctx, query, int64(id), cartItem.Count)
 		return err
 	})
 	if err != nil {
@@ -264,18 +206,5 @@ func (r *PgxCartItemRepository) RemoveByUserId(ctx context.Context, userId uuid.
 	}
 
 	r.metrics.ReportRequest("RemoveByUserId", "success")
-	return nil
-}
-
-func (r *PgxCartItemRepository) RemoveByReservationId(ctx context.Context, reservationId int64) error {
-	const query = `DELETE FROM cart_items WHERE reservation_id = $1`
-
-	_, err := r.pool.Exec(ctx, query, reservationId)
-	if err != nil {
-		r.metrics.ReportRequest("RemoveByReservationId", "error")
-		return fmt.Errorf("PgxCartItemRepository.RemoveByReservationId: %w", err)
-	}
-
-	r.metrics.ReportRequest("RemoveByReservationId", "success")
 	return nil
 }

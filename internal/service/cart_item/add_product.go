@@ -19,13 +19,13 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 		return fmt.Errorf("productClient.GetBySku: %w", err)
 	}
 
-	existingCartItem, err := s.cartRepository.GetByUserIdAndSku(ctx, userId, sku)
+	existingCartItem, err := s.cartItemRepository.GetByUserIdAndSku(ctx, userId, sku)
 	if err != nil && !errors.Is(err, model.ErrCartItemsNotFound) {
 		return fmt.Errorf("cartRepository.GetByUserIdAndSku: %w", err)
 	}
 
 	if existingCartItem != nil {
-		return s.cartRepository.Update(ctx, existingCartItem.Id, model.CartItem{
+		return s.cartItemRepository.Update(ctx, existingCartItem.Id, model.CartItem{
 			Count: existingCartItem.Count + count,
 		})
 	}
@@ -47,7 +47,7 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 		}
 	}
 
-	_, err = s.cartRepository.Create(ctx, model.CartItem{
+	_, err = s.cartItemRepository.Create(ctx, model.CartItem{
 		UserId: userId,
 		Count:  count,
 		Product: model.Product{
