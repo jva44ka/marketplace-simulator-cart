@@ -13,18 +13,17 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/round_trippers"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
+	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
+	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
+	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
 
-	cartItemsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/repository"
-	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/service"
-	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/client"
-	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/repository"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/middlewares"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/round_trippers"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/kafka"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
 )
@@ -94,15 +93,15 @@ func bootstrapHandler(config *config.Config) (http.Handler, *kafka.Consumer, err
 
 	dbMetrics := metrics.NewDbMetrics()
 	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool, dbMetrics)
-	cartRepository := cartItemsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
-	cartService := cartItemsServicePkg.NewCartService(cartRepository, productClient, productRepository)
+	cartRepository := productsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
+	cartService := cartItemsServicePkg.NewCartItemService(cartRepository, productClient, productRepository)
 	validator := validation.Validator{}
 
 	consumer := kafka.NewConsumer(
 		config.Kafka.Brokers,
 		config.Kafka.ReservationExpiredTopic,
 		config.Kafka.ConsumerGroup,
-		cartRepository,
+		cartService,
 	)
 
 	mx := http.NewServeMux()

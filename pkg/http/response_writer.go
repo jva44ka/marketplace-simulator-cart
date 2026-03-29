@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	errors2 "github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
-	domain_errors "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
+	domain_errors "github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 )
 
 func WriteSuccessResponse(w http.ResponseWriter, response any) {

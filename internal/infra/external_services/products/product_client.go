@@ -1,12 +1,12 @@
-package client
+package products
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	pb "github.com/jva44ka/ozon-simulator-go-cart/internal/app/gen/ozon-simulator-go-products/api/v1/proto"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
+	pb "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products/pb/ozon-simulator-go-products/api/v1/proto"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -43,7 +43,7 @@ func NewProductClient(host string, port string, authToken string, timeout string
 	}, nil
 }
 
-func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model.Product, error) {
+func (c *ProductClient) GetBySku(ctx context.Context, sku uint64) (*model.Product, error) {
 	req := &pb.GetProductRequest{Sku: sku}
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
@@ -70,7 +70,7 @@ func (c *ProductClient) GetProductBySku(ctx context.Context, sku uint64) (*model
 }
 
 // ReserveProduct резервирует товары и возвращает map[sku → reservation_id].
-func (c *ProductClient) ReserveProduct(
+func (c *ProductClient) Reserve(
 	ctx context.Context,
 	productCountsBySkus map[uint64]uint32,
 ) (map[uint64]int64, error) {
@@ -100,7 +100,7 @@ func (c *ProductClient) ReserveProduct(
 				return nil, model.ErrInsufficientStock
 			}
 		}
-		return nil, fmt.Errorf("ProductClient.ReserveProduct: %w", err)
+		return nil, fmt.Errorf("ProductClient.Reserve: %w", err)
 	}
 
 	result := make(map[uint64]int64, len(resp.Results))
@@ -156,4 +156,3 @@ func (c *ProductClient) ConfirmReservation(ctx context.Context, reservationIds [
 
 	return nil
 }
-

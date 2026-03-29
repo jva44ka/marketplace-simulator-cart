@@ -14,23 +14,23 @@ type ReservationExpiredEvent struct {
 	Count         uint32 `json:"count"`
 }
 
-type CartRepository interface {
-	RemoveCartItemByReservationId(ctx context.Context, reservationId int64) error
+type CartItemService interface {
+	RemoveExpired(ctx context.Context, reservationId int64) error
 }
 
 type Consumer struct {
-	reader   *segkafka.Reader
-	cartRepo CartRepository
+	reader          *segkafka.Reader
+	cartItemService CartItemService
 }
 
-func NewConsumer(brokers []string, topic, groupId string, cartRepo CartRepository) *Consumer {
+func NewConsumer(brokers []string, topic, groupId string, cartItemService CartItemService) *Consumer {
 	return &Consumer{
 		reader: segkafka.NewReader(segkafka.ReaderConfig{
 			Brokers: brokers,
 			Topic:   topic,
 			GroupID: groupId,
 		}),
-		cartRepo: cartRepo,
+		cartItemService: cartItemService,
 	}
 }
 
@@ -51,7 +51,7 @@ func (c *Consumer) Run(ctx context.Context) {
 			continue
 		}
 
-		if err = c.cartRepo.RemoveCartItemByReservationId(ctx, event.ReservationId); err != nil {
+		if err = c.cartItemService.RemoveExpired(ctx, event.ReservationId); err != nil {
 			slog.ErrorContext(ctx, "failed to remove expired cart item",
 				"reservation_id", event.ReservationId, "err", err)
 		}

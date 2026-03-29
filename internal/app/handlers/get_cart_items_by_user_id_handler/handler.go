@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 	httpPkg "github.com/jva44ka/ozon-simulator-go-cart/pkg/http"
 )
 
