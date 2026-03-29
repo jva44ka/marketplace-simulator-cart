@@ -25,29 +25,9 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 	}
 
 	if existingCartItem != nil {
-		// Освобождаем старую резервацию, создаём новую на суммарный count
-		if existingCartItem.ReservationId != 0 {
-			if err = s.productClient.ReleaseReservation(ctx, []int64{existingCartItem.ReservationId}); err != nil {
-				return fmt.Errorf("productClient.ReleaseReservation: %w", err)
-			}
-		}
-
-		newTotal := existingCartItem.Count + count
-		var reservationIds, err = s.productClient.Reserve(ctx, map[uint64]uint32{sku: newTotal})
-		if err != nil {
-			return fmt.Errorf("productClient.Reserve: %w", err)
-		}
-
 		return s.cartRepository.Update(ctx, existingCartItem.Id, model.CartItem{
-			Count:         newTotal,
-			ReservationId: reservationIds[sku],
+			Count: existingCartItem.Count + count,
 		})
-	}
-
-	// Новый элемент корзины: резервируем и добавляем
-	reservationIds, err := s.productClient.Reserve(ctx, map[uint64]uint32{sku: count})
-	if err != nil {
-		return fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
 	// Убеждаемся что продукт есть в локальной БД
@@ -68,9 +48,8 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 	}
 
 	_, err = s.cartRepository.Create(ctx, model.CartItem{
-		UserId:        userId,
-		Count:         count,
-		ReservationId: reservationIds[sku],
+		UserId: userId,
+		Count:  count,
 		Product: model.Product{
 			Sku:   sku,
 			Price: productInMasterSystem.Price,

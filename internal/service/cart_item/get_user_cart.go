@@ -8,7 +8,7 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 )
 
-func (s *CartItemService) GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error) {
+func (s *CartItemService) GetUserCart(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error) {
 	cartItems, err := s.cartRepository.GetByUserId(ctx, userId)
 	if err != nil {
 		return nil, 0.0, fmt.Errorf("cartRepository.GetByUserId: %w", err)
