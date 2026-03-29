@@ -10,11 +10,12 @@ RUN go mod download
 # Копируем исходники
 COPY . .
 
-# Собираем бинарь
+# Собираем бинари
 RUN CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64 \
-    go build -o app ./cmd/server
+    go build -o server ./cmd/server && \
+    go build -o consumer ./cmd/consumer
 
 
 # ---------- MIGRATOR STAGE ----------
@@ -33,9 +34,10 @@ FROM gcr.io/distroless/base-debian12
 
 WORKDIR /app
 
-# Копируем только бинарник
-COPY --from=builder /app/app /app/app
+# Копируем бинари
+COPY --from=builder /app/server /app/server
+COPY --from=builder /app/consumer /app/consumer
 
 EXPOSE 5000
 
-ENTRYPOINT ["/app/app"]
+ENTRYPOINT ["/app/server"]
