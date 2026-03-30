@@ -16,7 +16,7 @@ func (s *CartItemService) GetUserCart(ctx context.Context, userId uuid.UUID) ([]
 
 	totalPrice := 0.0
 	for _, cartItem := range cartItems {
-		totalPrice += cartItem.Product.Price
+		totalPrice += cartItem.Product.Price * float64(cartItem.Count)
 	}
 
 	return cartItems, totalPrice, nil
