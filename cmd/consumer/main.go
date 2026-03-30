@@ -6,13 +6,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
-	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/kafka"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
-	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
 )
 
 func main() {
@@ -41,7 +36,7 @@ func main() {
 }
 
 func createConsumer(configImpl *config.Config) (*kafka.Consumer, error) {
-	productClient, err := productsClientPkg.NewProductClient(
+	/*productClient, err := productsClientPkg.NewProductClient(
 		configImpl.Products.Host,
 		configImpl.Products.Port,
 		configImpl.Products.AuthToken,
@@ -63,10 +58,10 @@ func createConsumer(configImpl *config.Config) (*kafka.Consumer, error) {
 		return nil, fmt.Errorf("Failed to create db pool: %w", err)
 	}
 
-	dbMetrics := metrics.NewDbMetrics()
+	/*dbMetrics := metrics.NewDbMetrics()
 	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool, dbMetrics)
 	cartRepository := productsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
-	cartService := cartItemsServicePkg.NewCartItemService(cartRepository, productClient, productRepository)
+	cartService := cartItemsServicePkg.NewCartItemService(cartRepository, productClient, productRepository)*/
 
 	reservationTopicConfig, err := configImpl.Kafka.GetReservationExpiredTopicConfig()
 	if err != nil {
