@@ -19,6 +19,10 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 		return fmt.Errorf("productClient.GetBySku: %w", err)
 	}
 
+	if productInMasterSystem.Count < count {
+		return model.ErrInsufficientStock
+	}
+
 	existingCartItem, err := s.cartItemRepository.GetByUserIdAndSku(ctx, userId, sku)
 	if err != nil && !errors.Is(err, model.ErrCartItemsNotFound) {
 		return fmt.Errorf("cartRepository.GetByUserIdAndSku: %w", err)
