@@ -12,11 +12,11 @@ proto-generate:
 	-I C:/Git/googleapis \
 	-I C:/Git/grpc-gateway \
 	-I C:/Git/protoc/include \
-	--go_out=./internal/app/gen \
-	--go-grpc_out=./internal/app/gen \
-	--grpc-gateway_out=./internal/app/gen \
+	--go_out=./internal/infra/external_services/products/pb \
+	--go-grpc_out=./internal/infra/external_services/products/pb \
+	--grpc-gateway_out=./internal/infra/external_services/products/pb \
 	--openapiv2_out=swagger \
-	internal/infra/proto/products/v1/products.proto
+	internal/infra/external_services/products/proto/products/v1/products.proto
 
 docker-build-latest:
 	docker build -t jva44ka/ozon-simulator-go-cart:latest .

@@ -11,43 +11,59 @@
 - **Prometheus** — сбор метрик
 - **Swagger** — документация API (swaggo)
 - **gRPC** — клиент для обращения к сервису товаров
+- **Kafka** — получение событий об истечении резервирований (segmentio/kafka-go)
 
 ## Архитектура
 
 ```
-cmd/server/          — точка входа
+cmd/
+  server/          — точка входа HTTP-сервера
+  consumer/        — точка входа Kafka-консьюмера
 internal/
   app/
-    handlers/        — HTTP-обработчики (один каталог = один endpoint)
-  domain/
-    model/           — доменные модели и ошибки
-    cart_items/
-      repository/    — работа с таблицей корзины в PostgreSQL
-      service/       — бизнес-логика корзины
-    products/
-      client/        — gRPC-клиент сервиса товаров
-      repository/    — кеш товаров в PostgreSQL
+    handlers/      — HTTP-обработчики (один каталог = один endpoint)
+    middlewares/   — HTTP-middleware (таймер)
+    round_trippers/ — round-tripper для замера времени исходящих запросов
+    validation/    — общая валидация запросов
+  model/           — доменные модели и ошибки
+  service/
+    cart_item/     — бизнес-логика корзины
   infra/
-    config/          — загрузка конфигурации из YAML
-    http/            — middleware и round-tripper для замера времени
-    metrics/         — Prometheus-метрики (запросы, БД)
-migrations/          — SQL-миграции (goose)
-swagger/             — сгенерированная Swagger-документация
+    config/        — загрузка конфигурации из YAML
+    database/
+      repository/  — работа с таблицами корзины и товаров в PostgreSQL
+    external_services/
+      products/    — gRPC-клиент сервиса товаров
+    kafka/         — Kafka-консьюмер событий reservation-expired
+    metrics/       — Prometheus-метрики (запросы, БД)
+pkg/
+  http/            — общие HTTP-утилиты (response writer, error response)
+migrations/        — SQL-миграции (goose)
+swagger/           — сгенерированная Swagger-документация
 ```
+
+## Резервирование товаров
+
+Резервирование происходит только в момент оформления заказа:
+
+1. **Добавление товара** — обращается к сервису товаров (`GetBySku`) для получения данных о товаре (цена, название) и проверки наличия на складе. Удаление позиции и очистка корзины — только с локальной БД, без обращения к складу.
+2. **Чекаут** — резервирует все позиции корзины (`Reserve`), очищает корзину, затем асинхронно подтверждает резервирование (`ConfirmReservation`). Если очистить корзину не удалось — резервирование сразу освобождается (`ReleaseReservation`).
+3. **Подтверждение резервирования** — выполняется в фоновой горутине. TODO: заменить на outbox для гарантированной доставки.
+4. **Истечение резервирования** — сервис товаров публикует событие в топик `reservation-expired-topic`. Kafka-консьюмер принимает событие и логирует его. TODO: реализовать обработку (возврат товара в корзину или уведомление пользователя).
 
 ## API
 
-Базовый URL: `http://localhost:8080` (локально)
+Базовый URL: `http://localhost:5010` (локально)
 
-| Метод  | Путь                               | Описание                                      |
-|--------|------------------------------------|-----------------------------------------------|
-| GET    | `/user/{user_id}/cart`             | Получить содержимое корзины пользователя      |
-| POST   | `/user/{user_id}/cart/{sku}`       | Добавить товар в корзину                      |
-| DELETE | `/user/{user_id}/cart/{sku}`       | Удалить позицию из корзины                    |
-| DELETE | `/user/{user_id}/cart`             | Очистить корзину полностью                    |
-| POST   | `/user/{user_id}/cart/checkout`    | Оформить заказ (списать товары со склада)     |
-| GET    | `/metrics`                         | Prometheus-метрики                            |
-| GET    | `/swagger/`                        | Swagger UI                                    |
+| Метод  | Путь                               | Описание                                          |
+|--------|------------------------------------|---------------------------------------------------|
+| GET    | `/user/{user_id}/cart`             | Получить содержимое корзины пользователя          |
+| POST   | `/user/{user_id}/cart/{sku}`       | Добавить товар в корзину                          |
+| DELETE | `/user/{user_id}/cart/{sku}`       | Удалить позицию из корзины                        |
+| DELETE | `/user/{user_id}/cart`             | Очистить корзину полностью                        |
+| POST   | `/user/{user_id}/cart/checkout`    | Оформить заказ (подтвердить резервирования)       |
+| GET    | `/metrics`                         | Prometheus-метрики                                |
+| GET    | `/swagger/`                        | Swagger UI                                        |
 
 > `user_id` — UUID пользователя, `sku` — числовой идентификатор товара.
 
@@ -55,7 +71,7 @@ swagger/             — сгенерированная Swagger-документ
 
 **Добавить товар в корзину:**
 ```
-POST http://localhost:8080/user/550e8400-e29b-41d4-a716-446655440000/cart/1
+POST http://localhost:5010/user/550e8400-e29b-41d4-a716-446655440000/cart/1
 Content-Type: application/json
 
 {"count": 2}
@@ -63,7 +79,7 @@ Content-Type: application/json
 
 **Получить корзину:**
 ```
-GET http://localhost:8080/user/550e8400-e29b-41d4-a716-446655440000/cart
+GET http://localhost:5010/user/550e8400-e29b-41d4-a716-446655440000/cart
 ```
 ```json
 {
@@ -76,7 +92,7 @@ GET http://localhost:8080/user/550e8400-e29b-41d4-a716-446655440000/cart
 
 **Оформить заказ:**
 ```
-POST http://localhost:8080/user/550e8400-e29b-41d4-a716-446655440000/cart/checkout
+POST http://localhost:5010/user/550e8400-e29b-41d4-a716-446655440000/cart/checkout
 ```
 ```json
 {"total_price": 200.0}
@@ -85,8 +101,10 @@ POST http://localhost:8080/user/550e8400-e29b-41d4-a716-446655440000/cart/checko
 ## Взаимодействие с сервисом товаров
 
 Сервис корзины обращается к `ozon-simulator-go-products` по gRPC для:
-- проверки существования товара и получения его данных при добавлении в корзину
-- списания количества товаров со склада при оформлении заказа (`DecreaseProductCount`)
+- получения данных о товаре при добавлении в корзину (`GetBySku`)
+- резервирования товаров на складе при чекауте (`Reserve`)
+- освобождения резервирования при ошибке чекаута (`ReleaseReservation`)
+- подтверждения резервирования после очистки корзины (`ConfirmReservation`)
 
 ## Конфигурация
 
@@ -94,14 +112,14 @@ POST http://localhost:8080/user/550e8400-e29b-41d4-a716-446655440000/cart/checko
 
 ```yaml
 server:
-  host:
-  port: 8080
+  host: localhost
+  port: 5010
 
 products:
   schema: http
   host: localhost
   port: 8082
-  auth-token: admin
+  auth-token: testToken
   timeout: 30s
 
 database:
@@ -110,6 +128,17 @@ database:
   host: localhost
   port: 5432
   name: ozon_simulator_go_cart
+
+jobs:
+  reservation-expired-consumer:
+    enabled: true
+
+kafka:
+  brokers:
+    - localhost:9092
+  topics:
+    - name: reservation-expired-topic
+      consumer-group: cart-service
 ```
 
 ## Запуск локально
@@ -118,6 +147,7 @@ database:
 
 - Go 1.24+
 - PostgreSQL
+- Kafka
 - [goose](https://github.com/pressly/goose)
 - Запущенный `ozon-simulator-go-products`
 
@@ -129,16 +159,26 @@ make up-migrations
 
 > По умолчанию подключается к `postgresql://postgres:1234@127.0.0.1:5432/ozon_simulator_go_cart`
 
-### Сервер
+### HTTP-сервер
 
 ```bash
-CONFIG_PATH=configs/values_local.yaml go run ./cmd/server/main.go
+CONFIG_PATH=configs/values_local.yaml go run ./cmd/server
 ```
+
+### Kafka-консьюмер
+
+```bash
+CONFIG_PATH=configs/values_local.yaml go run ./cmd/consumer
+```
+
+> Консьюмер запускается только если в конфиге `jobs.reservation-expired-consumer.enabled: true`.
 
 ## Docker
 
+Образ содержит два бинарных файла: `server` и `consumer`. По умолчанию запускается `server`.
+
 ```bash
-# Собрать образ сервиса
+# Собрать образ сервиса (содержит server и consumer)
 make docker-build-latest
 
 # Собрать образ мигратора

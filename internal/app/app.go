@@ -12,19 +12,18 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/interceptors"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
+	"google.golang.org/grpc"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
+	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
+	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
+	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
-
-	cartItemsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/repository"
-	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/cart_items/service"
-	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/client"
-	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/domain/products/repository"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/middlewares"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/http/round_trippers"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
 )
 
 type App struct {
@@ -32,25 +31,19 @@ type App struct {
 	server http.Server
 }
 
-func NewApp(configPath string) (*App, error) {
-	configImpl, err := config.LoadConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("config.LoadConfig: %w", err)
-	}
+func NewApp(cfg *config.Config) (*App, error) {
+	app := &App{config: cfg}
 
-	app := &App{
-		config: configImpl,
-	}
-
-	app.server.Handler, err = boostrapHandler(configImpl)
+	var err error
+	app.server.Handler, err = bootstrapHandler(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("boostrapHandler: %w", err)
+		return nil, fmt.Errorf("bootstrapHandler: %w", err)
 	}
 
 	return app, nil
 }
 
-func (app *App) ListenAndServe() error {
+func (app *App) ListenAndServe(_ context.Context) error {
 	address := fmt.Sprintf("%s:%s", app.config.Server.Host, app.config.Server.Port)
 
 	l, err := net.Listen("tcp", address)
@@ -61,15 +54,13 @@ func (app *App) ListenAndServe() error {
 	return app.server.Serve(l)
 }
 
-func boostrapHandler(config *config.Config) (http.Handler, error) {
-	tr := http.DefaultTransport
-	tr = round_trippers.NewTimerRoundTipper(tr)
-
+func bootstrapHandler(config *config.Config) (http.Handler, error) {
 	productClient, err := productsClientPkg.NewProductClient(
 		config.Products.Host,
 		config.Products.Port,
 		config.Products.AuthToken,
 		config.Products.Timeout,
+		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
@@ -89,32 +80,22 @@ func boostrapHandler(config *config.Config) (http.Handler, error) {
 
 	dbMetrics := metrics.NewDbMetrics()
 	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool, dbMetrics)
-	cartRepository := cartItemsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
-	cartService := cartItemsServicePkg.NewCartService(cartRepository, productClient, productRepository)
+	cartRepository := productsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
+	cartService := cartItemsServicePkg.NewCartItemService(cartRepository, productClient, productRepository)
 	validator := validation.Validator{}
 
 	mx := http.NewServeMux()
 
 	mx.Handle("GET /user/{user_id}/cart", get_cart_items_by_user_id_handler.NewGetCartItemsByUserIdHandler(
-		cartService,
-		validator))
-
+		cartService, validator))
 	mx.Handle("POST /user/{user_id}/cart/{sku}", add_products_to_cart_handler.NewAddProductsToCartHandler(
-		cartService,
-		validator))
-
+		cartService, validator))
 	mx.Handle("DELETE /user/{user_id}/cart/{sku}", remove_products_from_cart_handler.NewRemoveProductsFromCartHandler(
-		cartService,
-		validator))
-
+		cartService, validator))
 	mx.Handle("DELETE /user/{user_id}/cart", clean_cart_handler.NewCleanCartHandler(
-		cartService,
-		validator))
-
+		cartService, validator))
 	mx.Handle("POST /user/{user_id}/cart/checkout", checkout_handler.NewCheckoutHandler(
-		cartService,
-		validator))
-
+		cartService, validator))
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 

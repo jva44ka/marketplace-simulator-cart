@@ -5,12 +5,12 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/domain/model"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 	httpPkg "github.com/jva44ka/ozon-simulator-go-cart/pkg/http"
 )
 
 type CartService interface {
-	GetItemsByUserId(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error)
+	GetUserCart(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error)
 }
 
 type Validator interface {
@@ -49,7 +49,7 @@ func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	cartItems, totalPrice, err := h.cartService.GetItemsByUserId(r.Context(), userId)
+	cartItems, totalPrice, err := h.cartService.GetUserCart(r.Context(), userId)
 	if err != nil {
 		httpPkg.WriteServiceError(w, err)
 		return
