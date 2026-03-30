@@ -30,7 +30,7 @@ func NewConsumer(brokers []string, topic, groupId string) *Consumer {
 
 func (c *Consumer) Run(ctx context.Context) {
 	for {
-		msg, err := c.reader.ReadMessage(ctx)
+		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -47,6 +47,11 @@ func (c *Consumer) Run(ctx context.Context) {
 
 		//TODO: do something
 		slog.InfoContext(ctx, "recived reservation expired event", "event", event)
+
+		err = c.reader.CommitMessages(ctx, msg)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to commit reservation message in Kafka", "err", err)
+		}
 	}
 }
 

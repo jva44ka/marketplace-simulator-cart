@@ -12,9 +12,10 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/clean_cart_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/get_cart_items_by_user_id_handler"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/remove_products_from_cart_handler"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/interceptors"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/round_trippers"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
+	"google.golang.org/grpc"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
 	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
 	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
@@ -54,13 +55,12 @@ func (app *App) ListenAndServe(_ context.Context) error {
 }
 
 func bootstrapHandler(config *config.Config) (http.Handler, error) {
-	_ = round_trippers.NewTimerRoundTipper(http.DefaultTransport)
-
 	productClient, err := productsClientPkg.NewProductClient(
 		config.Products.Host,
 		config.Products.Port,
 		config.Products.AuthToken,
 		config.Products.Timeout,
+		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)

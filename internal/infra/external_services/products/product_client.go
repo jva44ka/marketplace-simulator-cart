@@ -24,8 +24,9 @@ type ProductClient struct {
 	timeout    time.Duration
 }
 
-func NewProductClient(host string, port string, authToken string, timeout string) (*ProductClient, error) {
-	conn, err := grpc.NewClient(host+":"+port, grpc.WithTransportCredentials(insecure.NewCredentials()))
+func NewProductClient(host string, port string, authToken string, timeout string, opts ...grpc.DialOption) (*ProductClient, error) {
+	dialOpts := append([]grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}, opts...)
+	conn, err := grpc.NewClient(host+":"+port, dialOpts...)
 	if err != nil {
 		return nil, err
 	}

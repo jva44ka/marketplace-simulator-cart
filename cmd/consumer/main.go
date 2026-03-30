@@ -21,7 +21,7 @@ func main() {
 
 	if configImpl.Jobs.ReservationExpiredConsumer.Enabled == false {
 		slog.Info("Consumer job is turn off. Shutting down")
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 	consumer, err := createConsumer(configImpl)

@@ -23,7 +23,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 	totalPrice := 0.0
 	for _, item := range cartItems {
 		skuCounts[item.Product.Sku] = item.Count
-		totalPrice += item.Product.Price
+		totalPrice += item.Product.Price * float64(item.Count)
 	}
 
 	reservationIds, err := s.productClient.Reserve(ctx, skuCounts)
