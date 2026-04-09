@@ -14,8 +14,7 @@ COPY . .
 RUN CGO_ENABLED=0 \
     GOOS=linux \
     GOARCH=amd64 \
-    go build -o server ./cmd/server && \
-    go build -o consumer ./cmd/consumer
+    go build -o server ./cmd/server
 
 
 # ---------- MIGRATOR STAGE ----------
@@ -36,7 +35,6 @@ WORKDIR /app
 
 # Копируем бинари
 COPY --from=builder /app/server /app/server
-COPY --from=builder /app/consumer /app/consumer
 
 EXPOSE 5000
 
