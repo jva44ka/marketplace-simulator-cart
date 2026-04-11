@@ -112,7 +112,6 @@ func (c *ProductClient) Reserve(
 	return result, nil
 }
 
-// ReleaseReservation освобождает резервации по их IDs.
 func (c *ProductClient) ReleaseReservation(ctx context.Context, reservationIds []int64) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
@@ -135,7 +134,6 @@ func (c *ProductClient) ReleaseReservation(ctx context.Context, reservationIds [
 	return nil
 }
 
-// ConfirmReservation подтверждает резервации по их IDs.
 func (c *ProductClient) ConfirmReservation(ctx context.Context, reservationIds []int64) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
