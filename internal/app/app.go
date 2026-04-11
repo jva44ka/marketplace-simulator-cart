@@ -18,10 +18,11 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	repositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
+	databasePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database"
 	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/jobs"
+	outboxServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/services/outbox"
 	cartItemPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -88,23 +89,22 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
-	productRepository := repositoryPkg.NewPgxProductRepository(pool, dbMetrics)
-	cartRepository := repositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
-	reservationConfirmationOutboxRepository := repositoryPkg.NewReservationConfirmationOutboxPgxRepository(pool)
-	cartService := cartItemPkg.NewCartItemService(cartRepository, productClient, productRepository)
+	db := databasePkg.NewDBManager(pool, dbMetrics)
+	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
+	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder)
 	validator := validation.Validator{}
 
-	productEventsOutboxJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
+	jobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
 	if err != nil {
 		return nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
 	}
 
-	productEventsOutboxJob := jobs.NewReservationConfirmationOutboxJob(
+	outboxJob := jobs.NewReservationConfirmationOutboxJob(
 		pool,
-		reservationConfirmationOutboxRepository,
+		db.OutboxPgxRepo(),
 		productClient,
 		config.Jobs.ReservationConfirmationOutbox.Enabled,
-		productEventsOutboxJobInterval,
+		jobInterval,
 		config.Jobs.ReservationConfirmationOutbox.BatchSize,
 		config.Jobs.ReservationConfirmationOutbox.MaxRetries,
 	)
@@ -124,5 +124,5 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 
-	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), productEventsOutboxJob, nil
+	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), outboxJob, nil
 }

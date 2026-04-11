@@ -7,5 +7,5 @@ import (
 )
 
 func (s *CartItemService) RemoveAllProducts(ctx context.Context, userId uuid.UUID) error {
-	return s.cartItemRepository.RemoveByUserId(ctx, userId)
+	return s.db.CartItemRepo().RemoveByUserId(ctx, userId)
 }

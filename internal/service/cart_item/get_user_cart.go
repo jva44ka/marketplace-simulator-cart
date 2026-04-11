@@ -9,7 +9,7 @@ import (
 )
 
 func (s *CartItemService) GetUserCart(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error) {
-	cartItems, err := s.cartItemRepository.GetByUserId(ctx, userId)
+	cartItems, err := s.db.CartItemRepo().GetByUserId(ctx, userId)
 	if err != nil {
 		return nil, 0.0, fmt.Errorf("cartRepository.GetByUserId: %w", err)
 	}

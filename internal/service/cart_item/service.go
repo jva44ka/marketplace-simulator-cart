@@ -4,8 +4,17 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 )
+
+type CartItemTxRepository interface {
+	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
+}
+
+type OutboxTxRepository interface {
+	Create(ctx context.Context, rec model.ReservationConfirmationOutboxRecordNew) error
+}
 
 type CartItemRepository interface {
 	Create(_ context.Context, cartItem model.CartItem) (uint64, error)
@@ -14,11 +23,27 @@ type CartItemRepository interface {
 	GetByUserIdAndSku(_ context.Context, userId uuid.UUID, sku uint64) (*model.CartItem, error)
 	RemoveByUserIdAndSku(_ context.Context, userId uuid.UUID, sku uint64) error
 	RemoveByUserId(_ context.Context, userId uuid.UUID) error
+	WithTx(tx pgx.Tx) CartItemTxRepository
 }
 
 type ProductRepository interface {
 	GetProductBySku(ctx context.Context, sku uint64) (model.Product, error)
 	AddProduct(ctx context.Context, product model.Product) (*model.Product, error)
+}
+
+type OutboxRepository interface {
+	WithTx(tx pgx.Tx) OutboxTxRepository
+}
+
+type DBManager interface {
+	CartItemRepo() CartItemRepository
+	ProductRepo() ProductRepository
+	OutboxRepo() OutboxRepository
+	InTransaction(ctx context.Context, fn func(pgx.Tx) error) error
+}
+
+type RecordBuilder interface {
+	BuildRecords(cartItems []model.CartItem, reservationIds map[uint64]int64) ([]model.ReservationConfirmationOutboxRecordNew, error)
 }
 
 type ProductClient interface {
@@ -29,19 +54,19 @@ type ProductClient interface {
 }
 
 type CartItemService struct {
-	cartItemRepository CartItemRepository
-	productClient      ProductClient
-	productRepository  ProductRepository
+	db            DBManager
+	productClient ProductClient
+	recordBuilder RecordBuilder
 }
 
 func NewCartItemService(
-	cartItemRepository CartItemRepository,
+	db DBManager,
 	productClient ProductClient,
-	productRepository ProductRepository,
+	recordBuilder RecordBuilder,
 ) *CartItemService {
 	return &CartItemService{
-		cartItemRepository: cartItemRepository,
-		productClient:      productClient,
-		productRepository:  productRepository,
+		db:            db,
+		productClient: productClient,
+		recordBuilder: recordBuilder,
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	cartItemPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
 )
 
 type ReservationConfirmationOutboxPgxRepository struct {
@@ -101,7 +102,7 @@ WHERE record_id = $1`
 	return nil
 }
 
-func (r *ReservationConfirmationOutboxPgxRepository) WithTx(tx pgx.Tx) *ReservationConfirmationOutboxPgxTxRepository {
+func (r *ReservationConfirmationOutboxPgxRepository) WithTx(tx pgx.Tx) cartItemPkg.OutboxTxRepository {
 	return &ReservationConfirmationOutboxPgxTxRepository{tx: tx}
 }
 
