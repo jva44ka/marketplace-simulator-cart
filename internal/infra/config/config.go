@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -28,34 +27,6 @@ type Config struct {
 		Port     string `yaml:"port"`
 		Name     string `yaml:"name"`
 	} `yaml:"database"`
-
-	Jobs struct {
-		ReservationExpiredConsumer struct {
-			Enabled bool `yaml:"enabled"`
-		} `yaml:"reservation-expired-consumer"`
-	} `yaml:"jobs"`
-
-	Kafka KafkaConfig `yaml:"kafka"`
-}
-
-type TopicConfig struct {
-	Name          string `yaml:"name"`
-	ConsumerGroup string `yaml:"consumer-group"`
-}
-
-type KafkaConfig struct {
-	Brokers []string      `yaml:"brokers"`
-	Topics  []TopicConfig `yaml:"topics"`
-}
-
-func (cfg KafkaConfig) GetReservationExpiredTopicConfig() (TopicConfig, error) {
-	for _, topicConfig := range cfg.Topics {
-		if topicConfig.Name == "reservation-expired-topic" {
-			return topicConfig, nil
-		}
-	}
-
-	return TopicConfig{}, errors.New("reservation-expired-topic not found")
 }
 
 func LoadConfig(filename string) (*Config, error) {
@@ -63,7 +34,6 @@ func LoadConfig(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	defer f.Close()
 
 	config := &Config{}
