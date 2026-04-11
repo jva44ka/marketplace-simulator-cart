@@ -6,7 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
-	cartItemPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/service"
 )
 
 type DBManagerMetrics interface {
@@ -29,15 +29,15 @@ func NewDBManager(pool *pgxpool.Pool, metrics DBManagerMetrics) *DBManager {
 	}
 }
 
-func (m *DBManager) CartItemRepo() cartItemPkg.CartItemRepository {
+func (m *DBManager) CartItemRepo() service.CartItemRepository {
 	return m.cartItems
 }
 
-func (m *DBManager) ProductRepo() cartItemPkg.ProductRepository {
+func (m *DBManager) ProductRepo() service.ProductRepository {
 	return m.products
 }
 
-func (m *DBManager) OutboxRepo() cartItemPkg.OutboxRepository {
+func (m *DBManager) OutboxRepo() service.OutboxRepository {
 	return m.outbox
 }
 

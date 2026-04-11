@@ -43,7 +43,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		}
 		outboxTxRepo := s.db.OutboxRepo().WithTx(tx)
 		for _, rec := range outboxRecords {
-			if err := outboxTxRepo.Create(ctx, rec); err != nil {
+			if err = outboxTxRepo.Create(ctx, rec); err != nil {
 				return fmt.Errorf("outboxTxRepo.Create: %w", err)
 			}
 		}

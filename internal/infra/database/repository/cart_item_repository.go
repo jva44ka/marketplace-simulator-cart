@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
-	cartItemPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/service"
 )
 
 type CartItemRepositoryMetrics interface {
@@ -134,7 +134,6 @@ WHERE ci.user_id = $1 AND ci.sku_id = $2`
 	return item, nil
 }
 
-
 func (r *PgxCartItemRepository) Create(ctx context.Context, cartItem model.CartItem) (uint64, error) {
 	const query = `
 INSERT INTO cart_items (sku_id, user_id, count)
@@ -210,7 +209,7 @@ func (r *PgxCartItemRepository) RemoveByUserId(ctx context.Context, userId uuid.
 	return nil
 }
 
-func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) cartItemPkg.CartItemTxRepository {
+func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) service.CartItemTxRepository {
 	return &PgxCartItemTxRepository{tx: tx}
 }
 
