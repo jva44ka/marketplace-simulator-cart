@@ -35,14 +35,14 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 	if err != nil {
 		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
-			return 0.0, fmt.Errorf("productClient.ReleaseReservation: %w", releaseErr)
+			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
 
 		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
 	}
 
 	err = s.db.InTransaction(ctx, func(tx pgx.Tx) error {
-		if err := s.db.CartItemRepo().WithTx(tx).RemoveByUserId(ctx, userId); err != nil {
+		if err = s.db.CartItemRepo().WithTx(tx).RemoveByUserId(ctx, userId); err != nil {
 			return fmt.Errorf("cartItemTxRepo.RemoveByUserId: %w", err)
 		}
 		outboxTxRepo := s.db.OutboxRepo().WithTx(tx)
@@ -56,7 +56,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 	if err != nil {
 		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
-			return 0.0, fmt.Errorf("productClient.ReleaseReservation: %w", releaseErr)
+			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
 
 		return 0.0, fmt.Errorf("checkout transaction: %w", err)
