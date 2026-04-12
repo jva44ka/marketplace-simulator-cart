@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/service"
 )
 
 type CartItemRepositoryMetrics interface {
@@ -133,7 +134,6 @@ WHERE ci.user_id = $1 AND ci.sku_id = $2`
 	return item, nil
 }
 
-
 func (r *PgxCartItemRepository) Create(ctx context.Context, cartItem model.CartItem) (uint64, error) {
 	const query = `
 INSERT INTO cart_items (sku_id, user_id, count)
@@ -206,5 +206,24 @@ func (r *PgxCartItemRepository) RemoveByUserId(ctx context.Context, userId uuid.
 	}
 
 	r.metrics.ReportRequest("RemoveByUserId", "success")
+	return nil
+}
+
+func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) service.CartItemTxRepository {
+	return &PgxCartItemTxRepository{tx: tx}
+}
+
+type PgxCartItemTxRepository struct {
+	tx pgx.Tx
+}
+
+func (r *PgxCartItemTxRepository) RemoveByUserId(ctx context.Context, userId uuid.UUID) error {
+	const query = `DELETE FROM cart_items WHERE user_id = $1`
+
+	_, err := r.tx.Exec(ctx, query, userId)
+	if err != nil {
+		return fmt.Errorf("PgxCartItemTxRepository.RemoveByUserId: %w", err)
+	}
+
 	return nil
 }

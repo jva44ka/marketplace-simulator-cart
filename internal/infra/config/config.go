@@ -27,6 +27,17 @@ type Config struct {
 		Port     string `yaml:"port"`
 		Name     string `yaml:"name"`
 	} `yaml:"database"`
+
+	Jobs struct {
+		ReservationConfirmationOutbox ReservationConfirmationOutboxConfig `yaml:"reservation-confirmation-outbox"`
+	} `yaml:"jobs"`
+}
+
+type ReservationConfirmationOutboxConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	JobInterval string `yaml:"job-interval"`
+	BatchSize   int    `yaml:"batch-size"`
+	MaxRetries  int    `yaml:"max-retries"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

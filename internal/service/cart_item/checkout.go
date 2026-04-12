@@ -3,14 +3,14 @@ package cart_item
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 )
 
 func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
-	cartItems, err := s.cartItemRepository.GetByUserId(ctx, userId)
+	cartItems, err := s.db.CartItemRepo().GetByUserId(ctx, userId)
 	if err != nil {
 		return 0.0, fmt.Errorf("cartRepository.GetByUserId: %w", err)
 	}
@@ -31,21 +31,36 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return 0.0, fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
-	if err = s.cartItemRepository.RemoveByUserId(ctx, userId); err != nil {
-		ids := reservationIdsToSlice(reservationIds)
-		if releaseErr := s.productClient.ReleaseReservation(ctx, ids); releaseErr != nil {
-			slog.ErrorContext(ctx, "failed to release reservations after cart remove error", "err", releaseErr)
+	outboxRecords, err := s.recordBuilder.BuildRecords(ctx, cartItems, reservationIds)
+	if err != nil {
+		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		if releaseErr != nil {
+			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
-		return 0.0, fmt.Errorf("cartRepository.RemoveByUserId: %w", err)
+
+		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
 	}
 
-	// TODO: заменить на outbox
-	go func() {
-		ids := reservationIdsToSlice(reservationIds)
-		if err := s.productClient.ConfirmReservation(context.Background(), ids); err != nil {
-			slog.Error("failed to confirm reservations", "err", err)
+	err = s.db.InTransaction(ctx, func(tx pgx.Tx) error {
+		if err = s.db.CartItemRepo().WithTx(tx).RemoveByUserId(ctx, userId); err != nil {
+			return fmt.Errorf("cartItemTxRepo.RemoveByUserId: %w", err)
 		}
-	}()
+		outboxTxRepo := s.db.OutboxRepo().WithTx(tx)
+		for _, rec := range outboxRecords {
+			if err = outboxTxRepo.Create(ctx, rec); err != nil {
+				return fmt.Errorf("outboxTxRepo.Create: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		if releaseErr != nil {
+			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
+		}
+
+		return 0.0, fmt.Errorf("checkout transaction: %w", err)
+	}
 
 	return totalPrice, nil
 }

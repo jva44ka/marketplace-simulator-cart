@@ -3,8 +3,10 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/handlers/add_products_to_cart_handler"
@@ -15,27 +17,30 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/interceptors"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
-	"google.golang.org/grpc"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	productsRepositoryPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
+	databasePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database"
 	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
-	cartItemsServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/jobs"
+	cartItemPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/cart_item"
+	outboxServicePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/service/outbox"
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"google.golang.org/grpc"
 )
 
 type App struct {
-	config *config.Config
-	server http.Server
+	config    *config.Config
+	server    http.Server
+	outboxJob *jobs.ReservationConfirmationOutboxJob
 }
 
 func NewApp(cfg *config.Config) (*App, error) {
 	app := &App{config: cfg}
 
 	var err error
-	app.server.Handler, err = bootstrapHandler(cfg)
+	app.server.Handler, app.outboxJob, err = bootstrapHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrapHandler: %w", err)
 	}
@@ -43,7 +48,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	return app, nil
 }
 
-func (app *App) ListenAndServe(_ context.Context) error {
+func (app *App) ListenAndServe(ctx context.Context) error {
 	address := fmt.Sprintf("%s:%s", app.config.Server.Host, app.config.Server.Port)
 
 	l, err := net.Listen("tcp", address)
@@ -51,10 +56,15 @@ func (app *App) ListenAndServe(_ context.Context) error {
 		return err
 	}
 
+	go func() {
+		slog.Info("starting reservation confirmation job")
+		app.outboxJob.Run(ctx)
+	}()
+
 	return app.server.Serve(l)
 }
 
-func bootstrapHandler(config *config.Config) (http.Handler, error) {
+func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, error) {
 	productClient, err := productsClientPkg.NewProductClient(
 		config.Products.Host,
 		config.Products.Port,
@@ -63,7 +73,7 @@ func bootstrapHandler(config *config.Config) (http.Handler, error) {
 		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
+		return nil, nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
 	}
 
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf(
@@ -75,14 +85,29 @@ func bootstrapHandler(config *config.Config) (http.Handler, error) {
 		config.Database.Name,
 	))
 	if err != nil {
-		return nil, fmt.Errorf("pgxpool.New: %w", err)
+		return nil, nil, fmt.Errorf("pgxpool.New: %w", err)
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
-	productRepository := productsRepositoryPkg.NewPgxProductRepository(pool, dbMetrics)
-	cartRepository := productsRepositoryPkg.NewPgxCartItemRepository(pool, dbMetrics)
-	cartService := cartItemsServicePkg.NewCartItemService(cartRepository, productClient, productRepository)
+	db := databasePkg.NewDBManager(pool, dbMetrics)
+	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
+	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder)
 	validator := validation.Validator{}
+
+	jobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
+	}
+
+	outboxJob := jobs.NewReservationConfirmationOutboxJob(
+		pool,
+		db.OutboxPgxRepo(),
+		productClient,
+		config.Jobs.ReservationConfirmationOutbox.Enabled,
+		jobInterval,
+		config.Jobs.ReservationConfirmationOutbox.BatchSize,
+		config.Jobs.ReservationConfirmationOutbox.MaxRetries,
+	)
 
 	mx := http.NewServeMux()
 
@@ -99,5 +124,5 @@ func bootstrapHandler(config *config.Config) (http.Handler, error) {
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 
-	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), nil
+	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), outboxJob, nil
 }
