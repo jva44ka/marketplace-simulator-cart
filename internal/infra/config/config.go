@@ -29,7 +29,8 @@ type Config struct {
 	} `yaml:"database"`
 
 	Jobs struct {
-		ReservationConfirmationOutbox ReservationConfirmationOutboxConfig `yaml:"reservation-confirmation-outbox"`
+		ReservationConfirmationOutbox        ReservationConfirmationOutboxConfig        `yaml:"reservation-confirmation-outbox"`
+		ReservationConfirmationOutboxMonitor ReservationConfirmationOutboxMonitorConfig `yaml:"reservation-confirmation-outbox-monitor"`
 	} `yaml:"jobs"`
 }
 
@@ -38,6 +39,11 @@ type ReservationConfirmationOutboxConfig struct {
 	JobInterval string `yaml:"job-interval"`
 	BatchSize   int    `yaml:"batch-size"`
 	MaxRetries  int    `yaml:"max-retries"`
+}
+
+type ReservationConfirmationOutboxMonitorConfig struct {
+	Enabled     bool   `yaml:"enabled"`
+	JobInterval string `yaml:"job-interval"`
 }
 
 func LoadConfig(filename string) (*Config, error) {
