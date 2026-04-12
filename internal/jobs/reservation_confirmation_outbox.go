@@ -24,7 +24,7 @@ type ProductsClient interface {
 }
 
 type processBatchResult struct {
-	SuccessRecords      []model.ReservationConfirmationOutboxRecord
+	SuccessRecords      []uuid.UUID
 	FailedRecordReasons map[uuid.UUID]string
 }
 
@@ -109,8 +109,8 @@ func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) {
 
 	if len(batchResult.SuccessRecords) > 0 {
 		successIds := make([]uuid.UUID, 0, len(batchResult.SuccessRecords))
-		for _, rec := range batchResult.SuccessRecords {
-			successIds = append(successIds, rec.RecordId)
+		for _, recordId := range batchResult.SuccessRecords {
+			successIds = append(successIds, recordId)
 		}
 
 		if delErr := j.outboxRepo.DeleteBatch(ctx, successIds); delErr != nil {
@@ -149,7 +149,7 @@ func (j *ReservationConfirmationOutboxJob) processBatch(
 	}
 
 	return processBatchResult{
-		SuccessRecords:      outboxRecords,
+		SuccessRecords:      successRecords,
 		FailedRecordReasons: failedRecordReasons,
 	}
 }

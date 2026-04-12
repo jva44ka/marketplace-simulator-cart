@@ -8,7 +8,7 @@ import (
 )
 
 type RecordBuilder interface {
-	BuildRecords(cartItems []model.CartItem, reservationIds map[uint64]int64) ([]model.ReservationConfirmationOutboxRecordNew, error)
+	BuildRecords(ctx context.Context, cartItems []model.CartItem, reservationIds map[uint64]int64) ([]model.ReservationConfirmationOutboxRecordNew, error)
 }
 
 type ProductClient interface {

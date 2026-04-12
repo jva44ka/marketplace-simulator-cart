@@ -1,8 +1,10 @@
 package outbox
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strconv"
 
 	outboxContracts "github.com/jva44ka/ozon-simulator-go-cart/api_internal/outbox"
@@ -16,6 +18,7 @@ func NewReservationConfirmationRecordBuilder() *ReservationConfirmationRecordBui
 }
 
 func (b *ReservationConfirmationRecordBuilder) BuildRecords(
+	ctx context.Context,
 	cartItems []model.CartItem,
 	reservationIds map[uint64]int64,
 ) ([]model.ReservationConfirmationOutboxRecordNew, error) {
@@ -24,6 +27,7 @@ func (b *ReservationConfirmationRecordBuilder) BuildRecords(
 	for _, item := range cartItems {
 		reservationId, ok := reservationIds[item.Product.Sku]
 		if !ok {
+			slog.ErrorContext(ctx, "reservation id not found for sku", "sku", item.Product.Sku)
 			continue
 		}
 

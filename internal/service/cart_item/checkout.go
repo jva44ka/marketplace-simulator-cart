@@ -31,9 +31,13 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return 0.0, fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
-	outboxRecords, err := s.recordBuilder.BuildRecords(cartItems, reservationIds)
+	outboxRecords, err := s.recordBuilder.BuildRecords(ctx, cartItems, reservationIds)
 	if err != nil {
-		s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		if releaseErr != nil {
+			return 0.0, fmt.Errorf("productClient.ReleaseReservation: %w", releaseErr)
+		}
+
 		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
 	}
 
@@ -50,7 +54,11 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return nil
 	})
 	if err != nil {
-		s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		if releaseErr != nil {
+			return 0.0, fmt.Errorf("productClient.ReleaseReservation: %w", releaseErr)
+		}
+
 		return 0.0, fmt.Errorf("checkout transaction: %w", err)
 	}
 
