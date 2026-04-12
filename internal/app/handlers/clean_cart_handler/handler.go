@@ -2,9 +2,7 @@ package clean_cart_handler
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/google/uuid"
 	httpPkg "github.com/jva44ka/ozon-simulator-go-cart/pkg/http"
@@ -60,18 +58,4 @@ func (h *CleanCartHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	httpPkg.WriteSuccessEmptyResponse(w)
 
 	return
-}
-
-func parseSku(r *http.Request) (int, error) {
-	skuRaw := r.PathValue("sku")
-	sku, err := strconv.Atoi(skuRaw)
-	if err != nil {
-		return 0, errors.New("sku must be a number")
-	}
-
-	if sku < 1 {
-		return 0, errors.New("sku must be more than zero")
-	}
-
-	return sku, nil
 }

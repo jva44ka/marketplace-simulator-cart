@@ -18,13 +18,13 @@ type Validator interface {
 	GetValidatedUserId(userIdRaw string) (uuid.UUID, error)
 }
 
-type GetReviewsBySkuHandler struct {
+type GetCartItemsByUserIdHandler struct {
 	cartService CartService
 	validator   Validator
 }
 
-func NewGetCartItemsByUserIdHandler(cartService CartService, validator Validator) *GetReviewsBySkuHandler {
-	return &GetReviewsBySkuHandler{
+func NewGetCartItemsByUserIdHandler(cartService CartService, validator Validator) *GetCartItemsByUserIdHandler {
+	return &GetCartItemsByUserIdHandler{
 		cartService: cartService,
 		validator:   validator,
 	}
@@ -41,7 +41,7 @@ func NewGetCartItemsByUserIdHandler(cartService CartService, validator Validator
 // @Success      200  {object}  CartItemResponse
 // @Failure      404  {object}  httpPkg.ErrorResponse
 // @Router       /user/{user_id}/cart [get]
-func (h *GetReviewsBySkuHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *GetCartItemsByUserIdHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	userIdRaw := r.PathValue("user_id")
 	userId, err := h.validator.GetValidatedUserId(userIdRaw)
 	if err != nil {

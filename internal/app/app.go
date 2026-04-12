@@ -27,6 +27,7 @@ import (
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
@@ -51,17 +52,29 @@ func NewApp(cfg *config.Config) (*App, error) {
 func (app *App) ListenAndServe(ctx context.Context) error {
 	address := fmt.Sprintf("%s:%s", app.config.Server.Host, app.config.Server.Port)
 
-	l, err := net.Listen("tcp", address)
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
 	}
 
-	go func() {
+	errGroup, ctx := errgroup.WithContext(ctx)
+
+	errGroup.Go(func() error {
 		slog.Info("starting reservation confirmation job")
 		app.outboxJob.Run(ctx)
-	}()
+		return nil
+	})
 
-	return app.server.Serve(l)
+	errGroup.Go(func() error {
+		return app.server.Serve(listener)
+	})
+
+	errGroup.Go(func() error {
+		<-ctx.Done()
+		return app.server.Shutdown(context.Background())
+	})
+
+	return errGroup.Wait()
 }
 
 func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, error) {

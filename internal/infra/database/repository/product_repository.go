@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	model2 "github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 )
 
 type ProductRepositoryMetrics interface {
@@ -29,22 +29,22 @@ type ProductRow struct {
 	Name  string
 }
 
-func (r *PgxProductRepository) GetProductBySku(ctx context.Context, sku uint64) (model2.Product, error) {
+func (r *PgxProductRepository) GetProductBySku(ctx context.Context, sku uint64) (model.Product, error) {
 	products, err := r.GetProductsBySku(ctx, []uint64{sku})
 	if err != nil {
-		return model2.Product{}, err
+		return model.Product{}, err
 	}
 	if len(products) == 0 {
-		return model2.Product{}, model2.ErrProductNotFound
+		return model.Product{}, model.ErrProductNotFound
 	}
 	if len(products) > 1 {
-		return model2.Product{}, errors.New("more than one products returned from db")
+		return model.Product{}, errors.New("more than one products returned from db")
 	}
 
 	return products[0], nil
 }
 
-func (r *PgxProductRepository) GetProductsBySku(ctx context.Context, skus []uint64) ([]model2.Product, error) {
+func (r *PgxProductRepository) GetProductsBySku(ctx context.Context, skus []uint64) ([]model.Product, error) {
 	const query = `
 SELECT sku, price, name
 FROM products
@@ -74,10 +74,10 @@ ORDER BY sku DESC`
 		productRows = append(productRows, productRow)
 	}
 
-	var result []model2.Product
+	var result []model.Product
 
 	for _, productRow := range productRows {
-		result = append(result, model2.Product{
+		result = append(result, model.Product{
 			Sku:   productRow.Sku,
 			Price: productRow.Price,
 			Name:  productRow.Name,
@@ -90,7 +90,7 @@ ORDER BY sku DESC`
 	return result, nil
 }
 
-func (r *PgxProductRepository) AddProduct(ctx context.Context, product model2.Product) (*model2.Product, error) {
+func (r *PgxProductRepository) AddProduct(ctx context.Context, product model.Product) (*model.Product, error) {
 	const query = `
 INSERT INTO
     products (sku, price, name)
