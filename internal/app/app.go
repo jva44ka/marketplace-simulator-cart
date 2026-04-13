@@ -128,7 +128,6 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	outboxMonitorMetrics := metrics.NewOutboxMonitorMetrics()
 
 	outboxJob := jobs.NewReservationConfirmationOutboxJob(
-		pool,
 		db.OutboxPgxRepo(),
 		productClient,
 		outboxMetrics,
