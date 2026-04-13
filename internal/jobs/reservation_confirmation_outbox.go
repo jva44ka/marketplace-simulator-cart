@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	outboxContracts "github.com/jva44ka/ozon-simulator-go-cart/api_internal/outbox"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 )
@@ -36,7 +35,6 @@ type processBatchResult struct {
 }
 
 type ReservationConfirmationOutboxJob struct {
-	pool           *pgxpool.Pool
 	outboxRepo     OutboxRepository
 	productsClient ProductsClient
 	metrics        OutboxJobMetrics
@@ -47,7 +45,6 @@ type ReservationConfirmationOutboxJob struct {
 }
 
 func NewReservationConfirmationOutboxJob(
-	pool *pgxpool.Pool,
 	outboxRepo OutboxRepository,
 	productsClient ProductsClient,
 	metrics OutboxJobMetrics,
@@ -57,7 +54,6 @@ func NewReservationConfirmationOutboxJob(
 	maxRetryCount int,
 ) *ReservationConfirmationOutboxJob {
 	return &ReservationConfirmationOutboxJob{
-		pool:           pool,
 		outboxRepo:     outboxRepo,
 		productsClient: productsClient,
 		metrics:        metrics,
@@ -138,7 +134,6 @@ func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) {
 		}
 	}
 
-	// Репортим метрики по результатам
 	if len(batchResult.SuccessRecords) > 0 {
 		j.metrics.ReportProcessed("success", len(batchResult.SuccessRecords))
 	}
