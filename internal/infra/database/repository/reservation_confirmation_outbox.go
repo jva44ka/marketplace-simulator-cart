@@ -65,6 +65,26 @@ LIMIT $1`
 	return result, nil
 }
 
+func (r *ReservationConfirmationOutboxPgxRepository) CountPending(ctx context.Context) (int64, error) {
+	const query = `SELECT COUNT(*) FROM outbox.reservation_confirmation_events WHERE is_dead_letter = FALSE`
+
+	var count int64
+	if err := r.pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("ReservationConfirmationOutboxPgxRepository.CountPending: %w", err)
+	}
+	return count, nil
+}
+
+func (r *ReservationConfirmationOutboxPgxRepository) CountDeadLetters(ctx context.Context) (int64, error) {
+	const query = `SELECT COUNT(*) FROM outbox.reservation_confirmation_events WHERE is_dead_letter = TRUE`
+
+	var count int64
+	if err := r.pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("ReservationConfirmationOutboxPgxRepository.CountDeadLetters: %w", err)
+	}
+	return count, nil
+}
+
 func (r *ReservationConfirmationOutboxPgxRepository) DeleteBatch(ctx context.Context, ids []uuid.UUID) error {
 	const query = `DELETE FROM outbox.reservation_confirmation_events WHERE record_id = ANY($1)`
 

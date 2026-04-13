@@ -32,16 +32,17 @@ import (
 )
 
 type App struct {
-	config    *config.Config
-	server    http.Server
-	outboxJob *jobs.ReservationConfirmationOutboxJob
+	config           *config.Config
+	server           http.Server
+	outboxJob        *jobs.ReservationConfirmationOutboxJob
+	outboxMonitorJob *jobs.OutboxMonitorJob
 }
 
 func NewApp(cfg *config.Config) (*App, error) {
 	app := &App{config: cfg}
 
 	var err error
-	app.server.Handler, app.outboxJob, err = bootstrapHandler(cfg)
+	app.server.Handler, app.outboxJob, app.outboxMonitorJob, err = bootstrapHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrapHandler: %w", err)
 	}
@@ -66,6 +67,12 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 	})
 
 	errGroup.Go(func() error {
+		slog.Info("starting outbox monitor job")
+		app.outboxMonitorJob.Run(ctx)
+		return nil
+	})
+
+	errGroup.Go(func() error {
 		return app.server.Serve(listener)
 	})
 
@@ -77,7 +84,7 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 	return errGroup.Wait()
 }
 
-func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, error) {
+func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, *jobs.OutboxMonitorJob, error) {
 	productClient, err := productsClientPkg.NewProductClient(
 		config.Products.Host,
 		config.Products.Port,
@@ -86,7 +93,7 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
+		return nil, nil, nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
 	}
 
 	pool, err := pgxpool.New(context.Background(), fmt.Sprintf(
@@ -98,7 +105,7 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		config.Database.Name,
 	))
 	if err != nil {
-		return nil, nil, fmt.Errorf("pgxpool.New: %w", err)
+		return nil, nil, nil, fmt.Errorf("pgxpool.New: %w", err)
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
@@ -107,19 +114,35 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder)
 	validator := validation.Validator{}
 
-	jobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
+	outboxJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
 	}
+
+	outboxMonitorJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutboxMonitor.JobInterval)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("parse outbox-monitor.job-interval: %w", err)
+	}
+
+	outboxMetrics := metrics.NewOutboxMetrics()
+	outboxMonitorMetrics := metrics.NewOutboxMonitorMetrics()
 
 	outboxJob := jobs.NewReservationConfirmationOutboxJob(
 		pool,
 		db.OutboxPgxRepo(),
 		productClient,
+		outboxMetrics,
 		config.Jobs.ReservationConfirmationOutbox.Enabled,
-		jobInterval,
+		outboxJobInterval,
 		config.Jobs.ReservationConfirmationOutbox.BatchSize,
 		config.Jobs.ReservationConfirmationOutbox.MaxRetries,
+	)
+
+	outboxMonitorJob := jobs.NewOutboxMonitorJob(
+		db.OutboxPgxRepo(),
+		outboxMonitorMetrics,
+		config.Jobs.ReservationConfirmationOutboxMonitor.Enabled,
+		outboxMonitorJobInterval,
 	)
 
 	mx := http.NewServeMux()
@@ -137,5 +160,5 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 
-	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), outboxJob, nil
+	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), outboxJob, outboxMonitorJob, nil
 }
