@@ -18,6 +18,7 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/middlewares"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/tracing"
 	databasePkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database"
 	productsClientPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/metrics"
@@ -27,6 +28,8 @@ import (
 	_ "github.com/jva44ka/ozon-simulator-go-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
@@ -91,21 +94,28 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		config.Products.AuthToken,
 		config.Products.Timeout,
 		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)
 	}
 
-	pool, err := pgxpool.New(context.Background(), fmt.Sprintf(
+	connString := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s",
 		config.Database.User,
 		config.Database.Password,
 		config.Database.Host,
 		config.Database.Port,
 		config.Database.Name,
-	))
+	)
+	poolConfig, err := pgxpool.ParseConfig(connString)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("pgxpool.New: %w", err)
+		return nil, nil, nil, fmt.Errorf("pgxpool.ParseConfig: %w", err)
+	}
+	poolConfig.ConnConfig.Tracer = tracing.NewPgxTracer()
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("pgxpool.NewWithConfig: %w", err)
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
@@ -159,5 +169,8 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 
-	return middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics()), outboxJob, outboxMonitorJob, nil
+	timerHandler := middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics())
+	tracedHandler := otelhttp.NewHandler(timerHandler, "cart-http")
+
+	return tracedHandler, outboxJob, outboxMonitorJob, nil
 }

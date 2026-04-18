@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	outboxContracts "github.com/jva44ka/ozon-simulator-go-cart/api_internal/outbox"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type OutboxRepository interface {
@@ -165,13 +167,19 @@ func (j *ReservationConfirmationOutboxJob) processBatch(
 			continue
 		}
 
-		//TODO: прокидывать заголовки в запрос
+		recordCtx := otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
+		tracer := otel.Tracer("cart-outbox")
+		recordCtx, span := tracer.Start(recordCtx, "outbox.ConfirmReservation")
+
 		confirmStart := time.Now()
-		if err := j.productsClient.ConfirmReservation(ctx, []int64{data.ReservationId}); err != nil {
+		if err := j.productsClient.ConfirmReservation(recordCtx, []int64{data.ReservationId}); err != nil {
+			span.RecordError(err)
+			span.End()
 			j.metrics.ReportConfirmationDuration(time.Since(confirmStart))
 			failedRecordReasons[outboxRecord.RecordId] = err.Error()
 			continue
 		}
+		span.End()
 		j.metrics.ReportConfirmationDuration(time.Since(confirmStart))
 
 		successRecords = append(successRecords, outboxRecord.RecordId)

@@ -8,15 +8,27 @@ import (
 
 	appPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/app"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
+	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/tracing"
 )
 
 func main() {
 	slog.Info("app starting")
 
+	ctx := context.Background()
+
 	configImpl, err := config.LoadConfig(os.Getenv("CONFIG_PATH"))
 	if err != nil {
 		slog.Error("failed to load config", "err", err)
 		os.Exit(1)
+	}
+
+	if configImpl.Tracing.Enabled {
+		shutdown, err := tracing.InitTracer(ctx, "cart", configImpl.Tracing.OtlpEndpoint)
+		if err != nil {
+			slog.Error("failed to init tracer", "err", err)
+			os.Exit(1)
+		}
+		defer shutdown(ctx)
 	}
 
 	app, err := appPkg.NewApp(configImpl)
@@ -25,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = app.ListenAndServe(context.Background()); err != nil {
+	if err = app.ListenAndServe(ctx); err != nil {
 		slog.Error("app stopped", "err", err)
 		os.Exit(1)
 	}
