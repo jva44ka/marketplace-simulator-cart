@@ -32,6 +32,11 @@ type Config struct {
 		ReservationConfirmationOutbox        ReservationConfirmationOutboxConfig        `yaml:"reservation-confirmation-outbox"`
 		ReservationConfirmationOutboxMonitor ReservationConfirmationOutboxMonitorConfig `yaml:"reservation-confirmation-outbox-monitor"`
 	} `yaml:"jobs"`
+
+	Tracing struct {
+		Enabled      bool   `yaml:"enabled"`
+		OtlpEndpoint string `yaml:"otlp-endpoint"`
+	} `yaml:"tracing"`
 }
 
 type ReservationConfirmationOutboxConfig struct {

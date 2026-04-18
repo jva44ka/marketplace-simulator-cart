@@ -9,6 +9,8 @@ import (
 
 	outboxContracts "github.com/jva44ka/ozon-simulator-go-cart/api_internal/outbox"
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type ReservationConfirmationRecordBuilder struct{}
@@ -24,6 +26,14 @@ func (b *ReservationConfirmationRecordBuilder) BuildRecords(
 ) ([]model.ReservationConfirmationOutboxRecordNew, error) {
 	records := make([]model.ReservationConfirmationOutboxRecordNew, 0, len(cartItems))
 
+	headers := map[string]string{}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(headers))
+
+	headersBytes, err := json.Marshal(headers)
+	if err != nil {
+		return nil, fmt.Errorf("ReservationConfirmationRecordBuilder.BuildRecords marshal headers: %w", err)
+	}
+
 	for _, item := range cartItems {
 		reservationId, ok := reservationIds[item.Product.Sku]
 		if !ok {
@@ -35,15 +45,10 @@ func (b *ReservationConfirmationRecordBuilder) BuildRecords(
 			ReservationId: reservationId,
 		}
 
-		dataBytes, err := json.Marshal(data)
+		var dataBytes []byte
+		dataBytes, err = json.Marshal(data)
 		if err != nil {
 			return nil, fmt.Errorf("ReservationConfirmationRecordBuilder.BuildRecords marshal data: %w", err)
-		}
-
-		headers := map[string]string{}
-		headersBytes, err := json.Marshal(headers)
-		if err != nil {
-			return nil, fmt.Errorf("ReservationConfirmationRecordBuilder.BuildRecords marshal headers: %w", err)
 		}
 
 		records = append(records, model.ReservationConfirmationOutboxRecordNew{
