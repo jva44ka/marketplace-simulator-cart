@@ -11,6 +11,7 @@ import (
 	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type OutboxRepository interface {
@@ -44,6 +45,7 @@ type ReservationConfirmationOutboxJob struct {
 	interval       time.Duration
 	batchSize      int
 	maxRetryCount  int
+	tracer         trace.Tracer
 }
 
 func NewReservationConfirmationOutboxJob(
@@ -63,6 +65,7 @@ func NewReservationConfirmationOutboxJob(
 		interval:       interval,
 		batchSize:      batchSize,
 		maxRetryCount:  maxRetryCount,
+		tracer:         otel.Tracer("cart-outbox"),
 	}
 }
 
@@ -168,8 +171,7 @@ func (j *ReservationConfirmationOutboxJob) processBatch(
 		}
 
 		recordCtx := otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
-		tracer := otel.Tracer("cart-outbox")
-		recordCtx, span := tracer.Start(recordCtx, "outbox.ConfirmReservation")
+		recordCtx, span := j.tracer.Start(recordCtx, "outbox.ConfirmReservation")
 
 		confirmStart := time.Now()
 		if err := j.productsClient.ConfirmReservation(recordCtx, []int64{data.ReservationId}); err != nil {
