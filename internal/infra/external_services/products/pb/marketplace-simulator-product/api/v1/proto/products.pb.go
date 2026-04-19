@@ -659,13 +659,13 @@ const file_internal_infra_external_services_products_proto_products_v1_products_
 	"\x14IncreaseProductCount\x12%.products.IncreaseProductCountRequest\x1a&.products.IncreaseProductCountResponse\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/v1/products/increase-count\x12t\n" +
 	"\x0eReserveProduct\x12\x1f.products.ReserveProductRequest\x1a .products.ReserveProductResponse\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/v1/products/reserve\x12\x8c\x01\n" +
 	"\x12ReleaseReservation\x12#.products.ReleaseReservationRequest\x1a$.products.ReleaseReservationResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/products/release-reservation\x12\x8c\x01\n" +
-	"\x12ConfirmReservation\x12#.products.ConfirmReservationRequest\x1a$.products.ConfirmReservationResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/products/confirm-reservationB\x9c\x01\x92Ag\x12\x15\n" +
+	"\x12ConfirmReservation\x12#.products.ConfirmReservationRequest\x1a$.products.ConfirmReservationResponse\"+\x82\xd3\xe4\x93\x02%:\x01*\" /v1/products/confirm-reservationB\x9f\x01\x92Ag\x12\x15\n" +
 	"\fProducts API2\x051.0.0*\x02\x01\x022\x10application/json:\x10application/jsonZ\x18\n" +
 	"\x16\n" +
 	"\x06x-auth\x12\f\b\x02\x1a\x06x-auth \x02b\f\n" +
 	"\n" +
 	"\n" +
-	"\x06x-auth\x12\x00Z0ozon-simulator-go-products/api/v1/proto;productsb\x06proto3"
+	"\x06x-auth\x12\x00Z3marketplace-simulator-product/api/v1/proto;productsb\x06proto3"
 
 var (
 	file_internal_infra_external_services_products_proto_products_v1_products_proto_rawDescOnce sync.Once

@@ -18,7 +18,7 @@ type Config struct {
 		AuthToken string `yaml:"auth-token"`
 		Schema    string `yaml:"schema"`
 		Timeout   string `yaml:"timeout"`
-	} `yaml:"products"`
+	} `yaml:"product"`
 
 	Database struct {
 		User     string `yaml:"user"`

@@ -1,4 +1,4 @@
-# ozon-simulator-go-cart
+# marketplace-simulator-cart
 
 Микросервис корзины покупок — сервис в рамках учебного проекта «Симулятор Ozon».
 
@@ -100,7 +100,7 @@ POST http://localhost:5010/user/550e8400-e29b-41d4-a716-446655440000/cart/checko
 
 ## Взаимодействие с сервисом товаров
 
-Сервис корзины обращается к `ozon-simulator-go-products` по gRPC для:
+Сервис корзины обращается к `marketplace-simulator-product` по gRPC для:
 - получения данных о товаре при добавлении в корзину (`GetBySku`)
 - резервирования товаров на складе при чекауте (`Reserve`)
 - освобождения резервирования при ошибке чекаута (`ReleaseReservation`)
@@ -127,7 +127,7 @@ database:
   password: 1234
   host: localhost
   port: 5432
-  name: ozon_simulator_go_cart
+  name: marketplace_simulator_cart
 
 jobs:
   reservation-expired-consumer:
@@ -149,7 +149,7 @@ kafka:
 - PostgreSQL
 - Kafka
 - [goose](https://github.com/pressly/goose)
-- Запущенный `ozon-simulator-go-products`
+- Запущенный `marketplace-simulator-product`
 
 ### Миграции
 
@@ -157,7 +157,7 @@ kafka:
 make up-migrations
 ```
 
-> По умолчанию подключается к `postgresql://postgres:1234@127.0.0.1:5432/ozon_simulator_go_cart`
+> По умолчанию подключается к `postgresql://postgres:1234@127.0.0.1:5432/marketplace_simulator_cart`
 
 ### HTTP-сервер
 

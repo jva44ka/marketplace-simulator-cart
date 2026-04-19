@@ -5,8 +5,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/database/repository"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/service"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/database/repository"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/service"
 )
 
 type DBManagerMetrics interface {

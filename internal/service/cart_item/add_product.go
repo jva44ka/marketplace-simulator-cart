@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
 func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	pb "github.com/jva44ka/ozon-simulator-go-cart/internal/infra/external_services/products/pb/ozon-simulator-go-products/api/v1/proto"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	pb "github.com/jva44ka/marketplace-simulator-cart/internal/infra/external_services/products/pb/marketplace-simulator-product/api/v1/proto"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"

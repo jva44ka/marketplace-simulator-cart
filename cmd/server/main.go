@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	appPkg "github.com/jva44ka/ozon-simulator-go-cart/internal/app"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/config"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/infra/tracing"
+	appPkg "github.com/jva44ka/marketplace-simulator-cart/internal/app"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/config"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/tracing"
 )
 
 func main() {

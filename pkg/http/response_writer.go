@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	errors2 "github.com/jva44ka/ozon-simulator-go-cart/internal/app/validation"
-	domain_errors "github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	errors2 "github.com/jva44ka/marketplace-simulator-cart/internal/app/validation"
+	domain_errors "github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
 func WriteSuccessResponse(w http.ResponseWriter, response any) {

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	outboxContracts "github.com/jva44ka/ozon-simulator-go-cart/api_internal/outbox"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	outboxContracts "github.com/jva44ka/marketplace-simulator-cart/api_internal/outbox"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
