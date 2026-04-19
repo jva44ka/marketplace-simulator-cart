@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
 type CartItemRepository interface {

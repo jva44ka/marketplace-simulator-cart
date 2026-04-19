@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/service"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/service"
 )
 
 type ReservationConfirmationOutboxPgxRepository struct {

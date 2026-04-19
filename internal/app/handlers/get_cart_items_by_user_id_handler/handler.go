@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/jva44ka/ozon-simulator-go-cart/internal/model"
-	httpPkg "github.com/jva44ka/ozon-simulator-go-cart/pkg/http"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
+	httpPkg "github.com/jva44ka/marketplace-simulator-cart/pkg/http"
 )
 
 type CartService interface {

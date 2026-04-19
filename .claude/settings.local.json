@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Git/ozon-simulator-go-products -type f -name \"*.go\" | xargs grep -l \"outbox\" 2>/dev/null)",
+      "Bash(go get:*)",
+      "Bash(go mod:*)",
+      "Bash(go build:*)",
+      "Bash(git fetch:*)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}
