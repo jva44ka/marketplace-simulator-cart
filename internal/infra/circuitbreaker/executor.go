@@ -33,9 +33,6 @@ func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error
 		MaxRequests: cfg.MaxRequests,
 		Interval:    interval,
 		Timeout:     timeout,
-		// Считаем отказом только инфраструктурные ошибки (сервер недоступен,
-		// таймаут, внутренняя ошибка). Бизнес-ошибки (NotFound,
-		// FailedPrecondition и т.д.) не должны приближать срабатывание CB.
 		IsSuccessful: func(err error) bool {
 			if err == nil {
 				return true
@@ -52,12 +49,12 @@ func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error
 				codes.InvalidArgument,
 				codes.PermissionDenied,
 				codes.Unauthenticated,
-				codes.ResourceExhausted: // не имеет смысла ретраить
+				codes.ResourceExhausted: // не имеет смысла ретраить, поэтому считаем успешным ответом
 				return true
-			case codes.Aborted: // оптимистичная блокировка — можем ретраить
+			case codes.Aborted: // оптимистичная блокировка — считаем отказом, чтобы ретраить
 				return false
 			default:
-				// Unavailable, DeadlineExceeded, Internal, Unknown и пр. — ретраим.
+				// Unavailable, DeadlineExceeded, Internal, Unknown и пр. — считаем отказом, чтобы ретраить.
 				return false
 			}
 		},
@@ -83,8 +80,6 @@ func (e *Executor) Execute(fn func() (any, error)) (any, error) {
 	return e.cb.Execute(fn)
 }
 
-// UnaryClientInterceptor возвращает gRPC client interceptor,
-// который пропускает каждый исходящий вызов через circuit breaker.
 func (e *Executor) UnaryClientInterceptor() grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,
