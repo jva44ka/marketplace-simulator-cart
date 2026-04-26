@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,7 +12,7 @@ import (
 )
 
 type ProductRepositoryMetrics interface {
-	ReportRequest(method, status string)
+	ReportRequest(method, status string, duration time.Duration)
 }
 
 type PgxProductRepository struct {
@@ -51,9 +52,10 @@ FROM products
 WHERE sku = ANY ($1)
 ORDER BY sku DESC`
 
+	start := time.Now()
 	rows, err := r.pool.Query(ctx, query, skus)
 	if err != nil {
-		r.metrics.ReportRequest("GetProductsBySku", "error")
+		r.metrics.ReportRequest("GetProductsBySku", "error", time.Since(start))
 		return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 	}
 
@@ -67,7 +69,7 @@ ORDER BY sku DESC`
 		)
 
 		if err != nil {
-			r.metrics.ReportRequest("GetProductsBySku", "error")
+			r.metrics.ReportRequest("GetProductsBySku", "error", time.Since(start))
 			return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
 		}
 
@@ -86,7 +88,7 @@ ORDER BY sku DESC`
 
 	defer rows.Close()
 
-	r.metrics.ReportRequest("GetProductsBySku", "success")
+	r.metrics.ReportRequest("GetProductsBySku", "success", time.Since(start))
 	return result, nil
 }
 
@@ -97,15 +99,16 @@ INSERT INTO
 VALUES
     ($1, $2, $3);`
 
+	start := time.Now()
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, product.Sku, product.Price, product.Name)
 		return err
 	})
 	if err != nil {
-		r.metrics.ReportRequest("AddProduct", "error")
+		r.metrics.ReportRequest("AddProduct", "error", time.Since(start))
 		return nil, fmt.Errorf("failed to insert products: %w", err)
 	}
 
-	r.metrics.ReportRequest("AddProduct", "success")
+	r.metrics.ReportRequest("AddProduct", "success", time.Since(start))
 	return &product, nil
 }
