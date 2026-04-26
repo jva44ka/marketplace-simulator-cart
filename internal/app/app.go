@@ -36,17 +36,17 @@ import (
 )
 
 type App struct {
-	config           *config.Config
-	server           http.Server
-	outboxJob        *jobs.ReservationConfirmationOutboxJob
-	outboxMonitorJob *jobs.OutboxMonitorJob
+	config             *config.Config
+	server             http.Server
+	outboxJob          *jobs.ReservationConfirmationOutboxJob
+	metricCollectorJob *jobs.MetricCollectorJob
 }
 
 func NewApp(cfg *config.Config) (*App, error) {
 	app := &App{config: cfg}
 
 	var err error
-	app.server.Handler, app.outboxJob, app.outboxMonitorJob, err = bootstrapHandler(cfg)
+	app.server.Handler, app.outboxJob, app.metricCollectorJob, err = bootstrapHandler(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrapHandler: %w", err)
 	}
@@ -71,8 +71,8 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 	})
 
 	errGroup.Go(func() error {
-		slog.Info("starting outbox monitor job")
-		app.outboxMonitorJob.Run(ctx)
+		slog.Info("starting metric collector job")
+		app.metricCollectorJob.Run(ctx)
 		return nil
 	})
 
@@ -88,7 +88,7 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 	return errGroup.Wait()
 }
 
-func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, *jobs.OutboxMonitorJob, error) {
+func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, *jobs.MetricCollectorJob, error) {
 	productDialOpts := []grpc.DialOption{
 		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
@@ -141,13 +141,13 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
 	}
 
-	outboxMonitorJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutboxMonitor.JobInterval)
+	metricCollectorJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutboxMonitor.JobInterval)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parse outbox-monitor.job-interval: %w", err)
 	}
 
 	outboxMetrics := metrics.NewOutboxMetrics()
-	outboxMonitorMetrics := metrics.NewOutboxMonitorMetrics()
+	metricCollectorMetrics := metrics.NewMetricCollectorMetrics()
 
 	outboxJob := jobs.NewReservationConfirmationOutboxJob(
 		db.OutboxPgxRepo(),
@@ -159,11 +159,12 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		config.Jobs.ReservationConfirmationOutbox.MaxRetries,
 	)
 
-	outboxMonitorJob := jobs.NewOutboxMonitorJob(
+	metricCollectorJob := jobs.NewMetricCollectorJob(
 		db.OutboxPgxRepo(),
-		outboxMonitorMetrics,
+		pool,
+		metricCollectorMetrics,
 		config.Jobs.ReservationConfirmationOutboxMonitor.Enabled,
-		outboxMonitorJobInterval,
+		metricCollectorJobInterval,
 	)
 
 	mx := http.NewServeMux()
@@ -184,5 +185,5 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	timerHandler := middlewares.NewTimerMiddleware(mx, metrics.NewRequestMetrics())
 	tracedHandler := otelhttp.NewHandler(timerHandler, "cart-http")
 
-	return tracedHandler, outboxJob, outboxMonitorJob, nil
+	return tracedHandler, outboxJob, metricCollectorJob, nil
 }

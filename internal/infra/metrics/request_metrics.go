@@ -16,16 +16,18 @@ func NewRequestMetrics() *RequestMetrics {
 	return &RequestMetrics{
 		requestsTotal: promauto.NewCounterVec(
 			prometheus.CounterOpts{
-				Name: "cart_http_requests_total",
-				Help: "Total number of HTTP requests",
+				Name:        "requests_total",
+				Help:        "Total number of requests",
+				ConstLabels: prometheus.Labels{"service": "cart"},
 			},
 			[]string{"method", "code"},
 		),
 		requestDuration: promauto.NewHistogramVec(
 			prometheus.HistogramOpts{
-				Name:    "cart_http_request_duration_seconds",
-				Help:    "Duration of HTTP requests in seconds",
-				Buckets: prometheus.DefBuckets,
+				Name:        "request_duration_seconds",
+				Help:        "Duration of requests in seconds",
+				Buckets:     prometheus.DefBuckets,
+				ConstLabels: prometheus.Labels{"service": "cart"},
 			},
 			[]string{"method"},
 		),

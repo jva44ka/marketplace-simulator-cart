@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,7 +14,7 @@ import (
 )
 
 type CartItemRepositoryMetrics interface {
-	ReportRequest(method, status string)
+	ReportRequest(method, status string, duration time.Duration)
 }
 
 type PgxCartItemRepository struct {
@@ -48,8 +49,10 @@ INNER JOIN products p ON p.sku = ci.sku_id
 WHERE ci.user_id = $1
 ORDER BY ci.id DESC`
 
+	start := time.Now()
 	rows, err := r.pool.Query(ctx, query, userId)
 	if err != nil {
+		r.metrics.ReportRequest("GetByUserId", "error", time.Since(start))
 		return nil, fmt.Errorf("PgxCartItemRepository.GetByUserId: %w", err)
 	}
 	defer rows.Close()
@@ -65,7 +68,7 @@ ORDER BY ci.id DESC`
 			&row.productPrice,
 			&row.productName,
 		); err != nil {
-			r.metrics.ReportRequest("GetByUserId", "error")
+			r.metrics.ReportRequest("GetByUserId", "error", time.Since(start))
 			return nil, fmt.Errorf("CartItemRepository.GetByUserId: %w", err)
 		}
 
@@ -83,7 +86,7 @@ ORDER BY ci.id DESC`
 		result = append(result, item)
 	}
 
-	r.metrics.ReportRequest("GetByUserId", "success")
+	r.metrics.ReportRequest("GetByUserId", "success", time.Since(start))
 	return result, nil
 }
 
@@ -100,6 +103,7 @@ FROM cart_items ci
 INNER JOIN products p ON p.sku = ci.sku_id
 WHERE ci.user_id = $1 AND ci.sku_id = $2`
 
+	start := time.Now()
 	row := r.pool.QueryRow(ctx, query, userId, sku)
 
 	var cr CartItemRow
@@ -115,11 +119,11 @@ WHERE ci.user_id = $1 AND ci.sku_id = $2`
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, model.ErrCartItemsNotFound
 		}
-		r.metrics.ReportRequest("GetByUserIdAndSku", "error")
+		r.metrics.ReportRequest("GetByUserIdAndSku", "error", time.Since(start))
 		return nil, fmt.Errorf("PgxCartItemRepository.GetByUserIdAndSku: %w", err)
 	}
 
-	r.metrics.ReportRequest("GetByUserIdAndSku", "success")
+	r.metrics.ReportRequest("GetByUserIdAndSku", "success", time.Since(start))
 	item := &model.CartItem{
 		Id:     cr.id,
 		UserId: cr.userId,
@@ -140,6 +144,7 @@ INSERT INTO cart_items (sku_id, user_id, count)
 VALUES ($1, $2, $3)
 RETURNING id`
 
+	start := time.Now()
 	var id int64
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, query,
@@ -149,63 +154,66 @@ RETURNING id`
 		).Scan(&id)
 	})
 	if err != nil {
-		r.metrics.ReportRequest("Create", "error")
+		r.metrics.ReportRequest("Create", "error", time.Since(start))
 		return 0, fmt.Errorf("failed to insert cart item: %w", err)
 	}
 
-	r.metrics.ReportRequest("Create", "success")
+	r.metrics.ReportRequest("Create", "success", time.Since(start))
 	return uint64(id), nil
 }
 
 func (r *PgxCartItemRepository) Update(ctx context.Context, id uint64, cartItem model.CartItem) error {
 	const query = `
 UPDATE cart_items
-SET 
+SET
     count = $2
 WHERE id = $1`
 
+	start := time.Now()
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, int64(id), cartItem.Count)
 		return err
 	})
 	if err != nil {
-		r.metrics.ReportRequest("Update", "error")
+		r.metrics.ReportRequest("Update", "error", time.Since(start))
 		return fmt.Errorf("failed to update cart item: %w", err)
 	}
 
-	r.metrics.ReportRequest("Update", "success")
+	r.metrics.ReportRequest("Update", "success", time.Since(start))
 	return nil
 }
 
 func (r *PgxCartItemRepository) RemoveByUserIdAndSku(ctx context.Context, userId uuid.UUID, sku uint64) error {
 	const query = `DELETE FROM cart_items WHERE user_id = $1 AND sku_id = $2`
 
+	start := time.Now()
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, userId, sku)
 		return err
 	})
 	if err != nil {
-		r.metrics.ReportRequest("RemoveByUserIdAndSku", "error")
+		r.metrics.ReportRequest("RemoveByUserIdAndSku", "error", time.Since(start))
 		return fmt.Errorf("failed to delete cart item: %w", err)
 	}
 
-	r.metrics.ReportRequest("RemoveByUserIdAndSku", "success")
+	r.metrics.ReportRequest("RemoveByUserIdAndSku", "success", time.Since(start))
 	return nil
 }
 
 func (r *PgxCartItemRepository) RemoveByUserId(ctx context.Context, userId uuid.UUID) error {
 	const query = `DELETE FROM cart_items WHERE user_id = $1`
 
+	start := time.Now()
 	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx, query, userId)
 		return err
 	})
 	if err != nil {
-		r.metrics.ReportRequest("RemoveByUserId", "error")
+		r.metrics.ReportRequest("RemoveByUserId", "error", time.Since(start))
 		return fmt.Errorf("failed to delete all cart items by user id: %w", err)
 	}
 
-	r.metrics.ReportRequest("RemoveByUserId", "success")
+	r.metrics.ReportRequest("RemoveByUserId", "success", time.Since(start))
 	return nil
 }
 

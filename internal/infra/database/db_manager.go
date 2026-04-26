@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,7 +11,7 @@ import (
 )
 
 type DBManagerMetrics interface {
-	ReportRequest(method, status string)
+	ReportRequest(method, status string, duration time.Duration)
 }
 
 type DBManager struct {
