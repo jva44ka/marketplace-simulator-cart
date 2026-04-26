@@ -17,6 +17,7 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/app/interceptors"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/app/middlewares"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/app/validation"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/circuitbreaker"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/config"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/tracing"
 	databasePkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database"
@@ -88,13 +89,24 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 }
 
 func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, *jobs.OutboxMonitorJob, error) {
+	productDialOpts := []grpc.DialOption{
+		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	}
+	if config.Products.CircuitBreaker.Enabled {
+		cb, err := circuitbreaker.NewExecutor(config.Products.CircuitBreaker, "product-client")
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("circuitbreaker.NewExecutor: %w", err)
+		}
+		productDialOpts = append(productDialOpts, grpc.WithUnaryInterceptor(cb.UnaryClientInterceptor()))
+	}
+
 	productClient, err := productsClientPkg.NewProductClient(
 		config.Products.Host,
 		config.Products.Port,
 		config.Products.AuthToken,
 		config.Products.Timeout,
-		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+		productDialOpts...,
 	)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("productsClientPkg.NewProductClient: %w", err)

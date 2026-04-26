@@ -18,7 +18,9 @@ type Config struct {
 		AuthToken string `yaml:"auth-token"`
 		Schema    string `yaml:"schema"`
 		Timeout   string `yaml:"timeout"`
-	} `yaml:"product"`
+
+		CircuitBreaker CircuitBreakerConfig `yaml:"circuit-breaker"`
+	} `yaml:"products"`
 
 	Database struct {
 		User     string `yaml:"user"`
@@ -37,6 +39,14 @@ type Config struct {
 		Enabled      bool   `yaml:"enabled"`
 		OtlpEndpoint string `yaml:"otlp-endpoint"`
 	} `yaml:"tracing"`
+}
+
+type CircuitBreakerConfig struct {
+	Enabled     bool    `yaml:"enabled"`
+	MaxRequests uint32  `yaml:"max-requests"` // кол-во запросов в half-open состоянии
+	Interval    string  `yaml:"interval"`     // окно сброса счётчиков в closed состоянии
+	Timeout     string  `yaml:"timeout"`      // время в open состоянии перед переходом в half-open
+	Threshold   float64 `yaml:"threshold"`    // доля ошибок для открытия (0.0–1.0)
 }
 
 type ReservationConfirmationOutboxConfig struct {
