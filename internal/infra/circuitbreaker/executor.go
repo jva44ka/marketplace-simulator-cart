@@ -30,7 +30,7 @@ func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error
 
 	settings := gobreaker.Settings{
 		Name:        name,
-		MaxRequests: cfg.MaxRequests,
+		MaxRequests: cfg.HalfOpenRequests,
 		Interval:    interval,
 		Timeout:     timeout,
 		IsSuccessful: func(err error) bool {
@@ -49,17 +49,20 @@ func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error
 				codes.InvalidArgument,
 				codes.PermissionDenied,
 				codes.Unauthenticated,
-				codes.ResourceExhausted: // не имеет смысла ретраить, поэтому считаем успешным ответом
+				codes.Aborted: // штатный ответ, не имеет смысла открывать CB
 				return true
-			case codes.Aborted: // оптимистичная блокировка — считаем отказом, чтобы ретраить
+			case codes.Unavailable,
+				codes.DeadlineExceeded,
+				codes.ResourceExhausted,
+				codes.Internal: // проблемы с сервисом, считаем отказом, открываем CB.
 				return false
 			default:
-				// Unavailable, DeadlineExceeded, Internal, Unknown и пр. — считаем отказом, чтобы ретраить.
+				// неизвестная ошибка - считаем как проблемы с сервисом и открываем CB.
 				return false
 			}
 		},
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			if counts.Requests < 5 {
+			if counts.Requests < cfg.MinRequestsToTrip {
 				return false
 			}
 			return float64(counts.TotalFailures)/float64(counts.Requests) >= cfg.Threshold

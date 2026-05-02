@@ -49,3 +49,7 @@ func (m *DBManager) InTransaction(ctx context.Context, fn func(pgx.Tx) error) er
 func (m *DBManager) OutboxPgxRepo() *repository.ReservationConfirmationOutboxPgxRepository {
 	return m.outbox
 }
+
+func (m *DBManager) CartItemPgxRepo() *repository.PgxCartItemRepository {
+	return m.cartItems
+}

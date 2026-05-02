@@ -89,16 +89,29 @@ func (app *App) ListenAndServe(ctx context.Context) error {
 }
 
 func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationConfirmationOutboxJob, *jobs.MetricCollectorJob, error) {
-	productDialOpts := []grpc.DialOption{
-		grpc.WithUnaryInterceptor(interceptors.NewTimerInterceptor()),
-		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+	unaryInterceptors := []grpc.UnaryClientInterceptor{}
+
+	if config.Products.Retry.Enabled {
+		retryInterceptor, err := interceptors.NewRetryInterceptor(config.Products.Retry)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("interceptors.NewRetryInterceptor: %w", err)
+		}
+		unaryInterceptors = append(unaryInterceptors, retryInterceptor)
 	}
+
+	unaryInterceptors = append(unaryInterceptors, interceptors.NewTimerInterceptor())
+
 	if config.Products.CircuitBreaker.Enabled {
 		cb, err := circuitbreaker.NewExecutor(config.Products.CircuitBreaker, "product-client")
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("circuitbreaker.NewExecutor: %w", err)
 		}
-		productDialOpts = append(productDialOpts, grpc.WithUnaryInterceptor(cb.UnaryClientInterceptor()))
+		unaryInterceptors = append(unaryInterceptors, cb.UnaryClientInterceptor())
+	}
+
+	productDialOpts := []grpc.DialOption{
+		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 	}
 
 	productClient, err := productsClientPkg.NewProductClient(
@@ -133,12 +146,18 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	dbMetrics := metrics.NewDbMetrics()
 	db := databasePkg.NewDBManager(pool, dbMetrics)
 	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
-	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder)
+	businessMetrics := metrics.NewBusinessMetrics()
+	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder, businessMetrics)
 	validator := validation.Validator{}
 
-	outboxJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
+	outboxIdleInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.IdleInterval)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.idle-interval: %w", err)
+	}
+
+	outboxActiveInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.ActiveInterval)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.active-interval: %w", err)
 	}
 
 	metricCollectorJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutboxMonitor.JobInterval)
@@ -154,13 +173,15 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		productClient,
 		outboxMetrics,
 		config.Jobs.ReservationConfirmationOutbox.Enabled,
-		outboxJobInterval,
+		outboxIdleInterval,
+		outboxActiveInterval,
 		config.Jobs.ReservationConfirmationOutbox.BatchSize,
 		config.Jobs.ReservationConfirmationOutbox.MaxRetries,
 	)
 
 	metricCollectorJob := jobs.NewMetricCollectorJob(
 		db.OutboxPgxRepo(),
+		db.CartItemPgxRepo(),
 		pool,
 		metricCollectorMetrics,
 		config.Jobs.ReservationConfirmationOutboxMonitor.Enabled,

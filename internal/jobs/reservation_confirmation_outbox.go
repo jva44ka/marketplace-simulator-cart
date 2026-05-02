@@ -42,7 +42,8 @@ type ReservationConfirmationOutboxJob struct {
 	productsClient ProductsClient
 	metrics        OutboxJobMetrics
 	enabled        bool
-	interval       time.Duration
+	idleInterval   time.Duration
+	activeInterval time.Duration
 	batchSize      int
 	maxRetryCount  int
 	tracer         trace.Tracer
@@ -53,7 +54,8 @@ func NewReservationConfirmationOutboxJob(
 	productsClient ProductsClient,
 	metrics OutboxJobMetrics,
 	enabled bool,
-	interval time.Duration,
+	idleInterval time.Duration,
+	activeInterval time.Duration,
 	batchSize int,
 	maxRetryCount int,
 ) *ReservationConfirmationOutboxJob {
@@ -62,7 +64,8 @@ func NewReservationConfirmationOutboxJob(
 		productsClient: productsClient,
 		metrics:        metrics,
 		enabled:        enabled,
-		interval:       interval,
+		idleInterval:   idleInterval,
+		activeInterval: activeInterval,
 		batchSize:      batchSize,
 		maxRetryCount:  maxRetryCount,
 		tracer:         otel.Tracer("cart-outbox"),
@@ -75,20 +78,24 @@ func (j *ReservationConfirmationOutboxJob) Run(ctx context.Context) {
 		return
 	}
 
-	ticker := time.NewTicker(j.interval)
-	defer ticker.Stop()
+	lastProcessed := 0
 
 	for {
+		interval := j.idleInterval
+		if lastProcessed > 0 {
+			interval = j.activeInterval
+		}
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			j.tick(ctx)
+		case <-time.After(interval):
+			lastProcessed = j.tick(ctx)
 		}
 	}
 }
 
-func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) {
+func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) int {
 	tickStart := time.Now()
 	defer func() {
 		j.metrics.ReportTickDuration(time.Since(tickStart))
@@ -97,11 +104,11 @@ func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) {
 	records, err := j.outboxRepo.GetPending(ctx, j.batchSize)
 	if err != nil {
 		slog.ErrorContext(ctx, "ReservationConfirmationOutboxJob: GetPending failed", "err", err)
-		return
+		return 0
 	}
 
 	if len(records) == 0 {
-		return
+		return 0
 	}
 
 	// Замеряем возраст записей
@@ -148,6 +155,8 @@ func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) {
 	if deadLetterCount > 0 {
 		j.metrics.ReportProcessed("dead_letter", deadLetterCount)
 	}
+
+	return len(records)
 }
 
 func (j *ReservationConfirmationOutboxJob) processBatch(

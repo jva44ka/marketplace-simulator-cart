@@ -17,20 +17,28 @@ type ProductClient interface {
 	ReleaseReservation(ctx context.Context, reservationIds []int64) error
 }
 
+type CheckoutMetrics interface {
+	RecordSuccess(totalPrice float64)
+	RecordFailure(reason string)
+}
+
 type CartItemService struct {
-	db            service.DBManager
-	productClient ProductClient
-	recordBuilder RecordBuilder
+	db              service.DBManager
+	productClient   ProductClient
+	recordBuilder   RecordBuilder
+	checkoutMetrics CheckoutMetrics
 }
 
 func NewCartItemService(
 	db service.DBManager,
 	productClient ProductClient,
 	recordBuilder RecordBuilder,
+	checkoutMetrics CheckoutMetrics,
 ) *CartItemService {
 	return &CartItemService{
-		db:            db,
-		productClient: productClient,
-		recordBuilder: recordBuilder,
+		db:              db,
+		productClient:   productClient,
+		recordBuilder:   recordBuilder,
+		checkoutMetrics: checkoutMetrics,
 	}
 }

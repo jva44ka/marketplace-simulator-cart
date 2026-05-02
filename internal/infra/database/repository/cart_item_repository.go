@@ -217,6 +217,24 @@ func (r *PgxCartItemRepository) RemoveByUserId(ctx context.Context, userId uuid.
 	return nil
 }
 
+func (r *PgxCartItemRepository) CountActiveCarts(ctx context.Context) (int64, error) {
+	var n int64
+	err := r.pool.QueryRow(ctx, "SELECT COUNT(DISTINCT user_id) FROM cart_items").Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("PgxCartItemRepository.CountActiveCarts: %w", err)
+	}
+	return n, nil
+}
+
+func (r *PgxCartItemRepository) CountCartItems(ctx context.Context) (int64, error) {
+	var n int64
+	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM cart_items").Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("PgxCartItemRepository.CountCartItems: %w", err)
+	}
+	return n, nil
+}
+
 func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) service.CartItemTxRepository {
 	return &PgxCartItemTxRepository{tx: tx}
 }

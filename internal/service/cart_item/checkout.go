@@ -3,6 +3,7 @@ package cart_item
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,6 +17,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 	}
 
 	if len(cartItems) == 0 {
+		s.checkoutMetrics.RecordFailure("empty_cart")
 		return 0.0, model.ErrCartEmpty
 	}
 
@@ -28,6 +30,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 
 	reservationIds, err := s.productClient.Reserve(ctx, skuCounts)
 	if err != nil {
+		s.checkoutMetrics.RecordFailure(checkoutFailureReason(err))
 		return 0.0, fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
@@ -35,9 +38,11 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 	if err != nil {
 		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
+			s.checkoutMetrics.RecordFailure("internal")
 			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
 
+		s.checkoutMetrics.RecordFailure("internal")
 		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
 	}
 
@@ -56,13 +61,28 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 	if err != nil {
 		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
+			s.checkoutMetrics.RecordFailure("internal")
 			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
 
+		s.checkoutMetrics.RecordFailure("internal")
 		return 0.0, fmt.Errorf("checkout transaction: %w", err)
 	}
 
+	s.checkoutMetrics.RecordSuccess(totalPrice)
 	return totalPrice, nil
+}
+
+func checkoutFailureReason(err error) string {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "insufficient"):
+		return "insufficient_stock"
+	case strings.Contains(msg, "not found"):
+		return "product_not_found"
+	default:
+		return "internal"
+	}
 }
 
 func reservationIdsToSlice(m map[uint64]int64) []int64 {

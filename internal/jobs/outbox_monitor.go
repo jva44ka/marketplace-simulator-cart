@@ -8,9 +8,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type MetricCollectorRepository interface {
+type OutboxMetricRepository interface {
 	CountPending(ctx context.Context) (int64, error)
 	CountDeadLetters(ctx context.Context) (int64, error)
+}
+
+type CartMetricRepository interface {
+	CountActiveCarts(ctx context.Context) (int64, error)
+	CountCartItems(ctx context.Context) (int64, error)
 }
 
 type MetricCollectorMetrics interface {
@@ -21,10 +26,13 @@ type MetricCollectorMetrics interface {
 	SetTotalConns(n int32)
 	SetMaxConns(n int32)
 	SetAvgAcquireDuration(d time.Duration)
+	SetActiveCarts(n int64)
+	SetCartItemsTotal(n int64)
 }
 
 type MetricCollectorJob struct {
-	repo                MetricCollectorRepository
+	outboxRepo          OutboxMetricRepository
+	cartRepo            CartMetricRepository
 	pool                *pgxpool.Pool
 	metrics             MetricCollectorMetrics
 	enabled             bool
@@ -34,18 +42,20 @@ type MetricCollectorJob struct {
 }
 
 func NewMetricCollectorJob(
-	repo MetricCollectorRepository,
+	outboxRepo OutboxMetricRepository,
+	cartRepo CartMetricRepository,
 	pool *pgxpool.Pool,
 	metrics MetricCollectorMetrics,
 	enabled bool,
 	interval time.Duration,
 ) *MetricCollectorJob {
 	return &MetricCollectorJob{
-		repo:     repo,
-		pool:     pool,
-		metrics:  metrics,
-		enabled:  enabled,
-		interval: interval,
+		outboxRepo: outboxRepo,
+		cartRepo:   cartRepo,
+		pool:       pool,
+		metrics:    metrics,
+		enabled:    enabled,
+		interval:   interval,
 	}
 }
 
@@ -70,18 +80,33 @@ func (j *MetricCollectorJob) Run(ctx context.Context) {
 
 func (j *MetricCollectorJob) tick(ctx context.Context) {
 	// Outbox metrics
-	pending, err := j.repo.CountPending(ctx)
+	pending, err := j.outboxRepo.CountPending(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "MetricCollectorJob: CountPending failed", "err", err)
 	} else {
 		j.metrics.SetPending(pending)
 	}
 
-	deadLetters, err := j.repo.CountDeadLetters(ctx)
+	deadLetters, err := j.outboxRepo.CountDeadLetters(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "MetricCollectorJob: CountDeadLetters failed", "err", err)
 	} else {
 		j.metrics.SetDeadLetter(deadLetters)
+	}
+
+	// Cart metrics
+	activeCarts, err := j.cartRepo.CountActiveCarts(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "MetricCollectorJob: CountActiveCarts failed", "err", err)
+	} else {
+		j.metrics.SetActiveCarts(activeCarts)
+	}
+
+	cartItems, err := j.cartRepo.CountCartItems(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "MetricCollectorJob: CountCartItems failed", "err", err)
+	} else {
+		j.metrics.SetCartItemsTotal(cartItems)
 	}
 
 	// Pool metrics
