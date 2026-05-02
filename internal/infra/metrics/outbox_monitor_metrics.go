@@ -15,6 +15,8 @@ type MetricCollectorMetrics struct {
 	totalConns         prometheus.Gauge
 	maxConns           prometheus.Gauge
 	avgAcquireDuration prometheus.Gauge
+	activeCarts        prometheus.Gauge
+	cartItemsTotal     prometheus.Gauge
 }
 
 func NewMetricCollectorMetrics() *MetricCollectorMetrics {
@@ -54,6 +56,16 @@ func NewMetricCollectorMetrics() *MetricCollectorMetrics {
 			Help:        "Average connection acquire duration over the last collection interval",
 			ConstLabels: prometheus.Labels{"service": "cart"},
 		}),
+		activeCarts: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:        "active_carts",
+			Help:        "Current number of distinct users with at least one item in cart",
+			ConstLabels: prometheus.Labels{"service": "cart"},
+		}),
+		cartItemsTotal: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:        "cart_items_total",
+			Help:        "Current total number of cart item rows",
+			ConstLabels: prometheus.Labels{"service": "cart"},
+		}),
 	}
 }
 
@@ -83,4 +95,12 @@ func (m *MetricCollectorMetrics) SetMaxConns(n int32) {
 
 func (m *MetricCollectorMetrics) SetAvgAcquireDuration(d time.Duration) {
 	m.avgAcquireDuration.Set(d.Seconds())
+}
+
+func (m *MetricCollectorMetrics) SetActiveCarts(n int64) {
+	m.activeCarts.Set(float64(n))
+}
+
+func (m *MetricCollectorMetrics) SetCartItemsTotal(n int64) {
+	m.cartItemsTotal.Set(float64(n))
 }

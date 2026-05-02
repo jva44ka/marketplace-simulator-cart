@@ -20,6 +20,7 @@ type Config struct {
 		Timeout   string `yaml:"timeout"`
 
 		CircuitBreaker CircuitBreakerConfig `yaml:"circuit-breaker"`
+		Retry          RetryConfig          `yaml:"retry"`
 	} `yaml:"products"`
 
 	Database struct {
@@ -47,6 +48,15 @@ type CircuitBreakerConfig struct {
 	Interval    string  `yaml:"interval"`     // окно сброса счётчиков в closed состоянии
 	Timeout     string  `yaml:"timeout"`      // время в open состоянии перед переходом в half-open
 	Threshold   float64 `yaml:"threshold"`    // доля ошибок для открытия (0.0–1.0)
+}
+
+type RetryConfig struct {
+	Enabled        bool    `yaml:"enabled"`
+	MaxAttempts    int     `yaml:"max-attempts"`
+	InitialBackoff string  `yaml:"initial-backoff"`
+	MaxBackoff     string  `yaml:"max-backoff"`
+	Multiplier     float64 `yaml:"multiplier"`
+	JitterFactor   float64 `yaml:"jitter-factor"` // доля от backoff для случайного отклонения (0.0–1.0)
 }
 
 type ReservationConfirmationOutboxConfig struct {
