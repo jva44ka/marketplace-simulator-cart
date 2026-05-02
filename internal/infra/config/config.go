@@ -43,20 +43,21 @@ type Config struct {
 }
 
 type CircuitBreakerConfig struct {
-	Enabled     bool    `yaml:"enabled"`
-	MaxRequests uint32  `yaml:"max-requests"` // кол-во запросов в half-open состоянии
-	Interval    string  `yaml:"interval"`     // окно сброса счётчиков в closed состоянии
-	Timeout     string  `yaml:"timeout"`      // время в open состоянии перед переходом в half-open
-	Threshold   float64 `yaml:"threshold"`    // доля ошибок для открытия (0.0–1.0)
+	Enabled           bool    `yaml:"enabled"`
+	HalfOpenRequests  uint32  `yaml:"half-open-requests"` // кол-во запросов в half-open состоянии
+	Interval          string  `yaml:"interval"`           // окно сброса счётчиков в closed состоянии
+	Timeout           string  `yaml:"timeout"`            // время в open состоянии перед переходом в half-open
+	Threshold         float64 `yaml:"threshold"`          // доля ошибок для открытия (0.0–1.0)
+	MinRequestsToTrip uint32  `yaml:"min-requests-to-trip"` // минимум запросов в окне перед проверкой threshold
 }
 
 type RetryConfig struct {
 	Enabled        bool    `yaml:"enabled"`
-	MaxAttempts    int     `yaml:"max-attempts"`
-	InitialBackoff string  `yaml:"initial-backoff"`
-	MaxBackoff     string  `yaml:"max-backoff"`
-	Multiplier     float64 `yaml:"multiplier"`
-	JitterFactor   float64 `yaml:"jitter-factor"` // доля от backoff для случайного отклонения (0.0–1.0)
+	MaxAttempts    int     `yaml:"max-attempts"`    // общее кол-во попыток включая первую (1 = без ретраев)
+	InitialBackoff string  `yaml:"initial-backoff"` // пауза перед первым ретраем
+	MaxBackoff     string  `yaml:"max-backoff"`     // максимальная пауза между ретраями
+	Multiplier     float64 `yaml:"multiplier"`      // множитель для exponential backoff (2.0 = каждый раз вдвое дольше)
+	JitterFactor   float64 `yaml:"jitter-factor"`   // случайное отклонение паузы (0.2 = ±20%, 0.0 = без jitter)
 }
 
 type ReservationConfirmationOutboxConfig struct {
