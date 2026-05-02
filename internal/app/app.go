@@ -150,9 +150,14 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder, businessMetrics)
 	validator := validation.Validator{}
 
-	outboxJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.JobInterval)
+	outboxIdleInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.IdleInterval)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.job-interval: %w", err)
+		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.idle-interval: %w", err)
+	}
+
+	outboxActiveInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutbox.ActiveInterval)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("parse reservation-confirmation.active-interval: %w", err)
 	}
 
 	metricCollectorJobInterval, err := time.ParseDuration(config.Jobs.ReservationConfirmationOutboxMonitor.JobInterval)
@@ -168,7 +173,8 @@ func bootstrapHandler(config *config.Config) (http.Handler, *jobs.ReservationCon
 		productClient,
 		outboxMetrics,
 		config.Jobs.ReservationConfirmationOutbox.Enabled,
-		outboxJobInterval,
+		outboxIdleInterval,
+		outboxActiveInterval,
 		config.Jobs.ReservationConfirmationOutbox.BatchSize,
 		config.Jobs.ReservationConfirmationOutbox.MaxRetries,
 	)
