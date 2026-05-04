@@ -8,6 +8,7 @@
 - **HTTP** — транспортный слой (`net/http`, Go ServeMux)
 - **PostgreSQL** — хранилище корзин (pgx/v5, pgxpool)
 - **gRPC** — клиент для обращения к сервису товаров
+- **etcd** — хранилище динамической конфигурации (hot-reload без рестарта)
 - **goose** — миграции БД
 - **Prometheus** — метрики
 - **OpenTelemetry** — распределённые трейсы (OTLP → Tempo)
@@ -32,8 +33,9 @@ internal/
     reservation_confirmation_outbox — асинхронная доставка ConfirmReservation в product
     outbox_monitor                  — сбор метрик outbox и пула соединений
   infra/
-    config/          — загрузка конфигурации из YAML
-    circuitbreaker/  — circuit breaker для gRPC-клиента (gobreaker)
+    config/          — загрузка конфигурации из YAML + ConfigStore (atomic hot-reload)
+    etcd/            — etcd-клиент, чтение/seed конфига, watcher
+    circuitbreaker/  — circuit breaker для gRPC-клиента (gobreaker, atomic swap)
     database/
       repository/    — репозитории cart_items, products, outbox
     external_services/
@@ -52,6 +54,8 @@ swagger/             — сгенерированная Swagger-документ
 4. В одной транзакции: удаляет корзину + создаёт outbox-записи
 5. При ошибке транзакции — вызывает `ReleaseReservation` для возврата резервирований
 6. **Outbox job** асинхронно вызывает `ConfirmReservation` для каждой записи
+
+> **Гарантия at-least-once**: outbox job может повторно вызвать `ConfirmReservation` после рестарта или при ретрае. Оба метода на стороне product (`ConfirmReservation`, `ReleaseReservation`) **идемпотентны** — повторный вызов с уже обработанными ID возвращает успех без изменения остатков.
 
 ## API
 
@@ -140,6 +144,12 @@ tracing:
   enabled: true
   otlp-endpoint: tempo:4317
 
+etcd:
+  endpoints:
+    - etcd:2379
+  dial-timeout: 5s
+  config-key: /config/cart   # ключ в etcd где хранится конфиг
+
 jobs:
   reservation-confirmation-outbox:
     enabled: true
@@ -151,6 +161,41 @@ jobs:
     enabled: true
     job-interval: 10s
 ```
+
+## Динамическая конфигурация (etcd)
+
+При старте сервис читает конфиг из YAML, затем подключается к etcd:
+- если ключ существует — загружает конфиг из etcd поверх YAML-дефолтов;
+- если ключа нет — записывает YAML-конфиг в etcd (первый старт).
+
+Затем запускает `Watch` на ключ — любое изменение в etcd применяется в реальном времени.
+
+Если etcd недоступен при старте — сервис продолжает работу с YAML-конфигом (graceful degradation).
+
+| Параметр | Обновляется без рестарта | Механизм |
+|---|---|---|
+| `products.circuit-breaker.*` | ✅ | атомарная замена `gobreaker.CircuitBreaker` в callback |
+| `products.retry.*` | ✅ | retry interceptor читает `cfgStore.Load()` на каждом вызове |
+| `products.timeout` | ✅ | читается из `cfgStore.Load()` на каждом вызове |
+| `jobs.*.enabled` / `job-interval` / `batch-size` / `max-retries` | ✅ | джобы читают `cfgStore.Load()` на каждом тике |
+| `database.*` | ⚠️ требует рестарта | лог warning при изменении |
+| `server.*` | ⚠️ требует рестарта | лог warning при изменении |
+| `tracing.*` | ⚠️ требует рестарта | лог warning при изменении |
+
+### Изменить конфиг через etcdctl
+
+```bash
+# Посмотреть текущий конфиг
+docker exec etcd etcdctl get /config/cart
+
+# Ужесточить circuit breaker
+docker exec etcd etcdctl put /config/cart "$(
+  docker exec etcd etcdctl get /config/cart --print-value-only \
+  | sed 's/threshold: 0.6/threshold: 0.3/'
+)"
+```
+
+Или через **etcd UI** → [http://localhost:8091](http://localhost:8091).
 
 ## Метрики Prometheus
 
