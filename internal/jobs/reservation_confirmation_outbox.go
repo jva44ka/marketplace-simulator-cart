@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	outboxContracts "github.com/jva44ka/marketplace-simulator-cart/api_internal/outbox"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/config"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -41,11 +42,7 @@ type ReservationConfirmationOutboxJob struct {
 	outboxRepo     OutboxRepository
 	productsClient ProductsClient
 	metrics        OutboxJobMetrics
-	enabled        bool
-	idleInterval   time.Duration
-	activeInterval time.Duration
-	batchSize      int
-	maxRetryCount  int
+	cfgStore       *config.ConfigStore
 	tracer         trace.Tracer
 }
 
@@ -53,55 +50,63 @@ func NewReservationConfirmationOutboxJob(
 	outboxRepo OutboxRepository,
 	productsClient ProductsClient,
 	metrics OutboxJobMetrics,
-	enabled bool,
-	idleInterval time.Duration,
-	activeInterval time.Duration,
-	batchSize int,
-	maxRetryCount int,
+	cfgStore *config.ConfigStore,
 ) *ReservationConfirmationOutboxJob {
 	return &ReservationConfirmationOutboxJob{
 		outboxRepo:     outboxRepo,
 		productsClient: productsClient,
 		metrics:        metrics,
-		enabled:        enabled,
-		idleInterval:   idleInterval,
-		activeInterval: activeInterval,
-		batchSize:      batchSize,
-		maxRetryCount:  maxRetryCount,
+		cfgStore:       cfgStore,
 		tracer:         otel.Tracer("cart-outbox"),
 	}
 }
 
 func (j *ReservationConfirmationOutboxJob) Run(ctx context.Context) {
-	if !j.enabled {
-		slog.InfoContext(ctx, "ReservationConfirmationOutboxJob disabled, shutting down")
-		return
-	}
-
 	lastProcessed := 0
 
 	for {
-		interval := j.idleInterval
+		cfg := j.cfgStore.Load().Jobs.ReservationConfirmationOutbox
+
+		//todo рефакторинг, чтобы не парсить на каждую итерацию
+		idleInterval, err := time.ParseDuration(cfg.IdleInterval)
+		if err != nil {
+			idleInterval = 100 * time.Millisecond
+			slog.Warn("ReservationConfirmationOutboxJob: invalid idle-interval, using 100ms", "err", err)
+		}
+
+		activeInterval, err := time.ParseDuration(cfg.ActiveInterval)
+		if err != nil {
+			activeInterval = 0
+			slog.Warn("ReservationConfirmationOutboxJob: invalid active-interval, using 0", "err", err)
+		}
+
+		interval := idleInterval
 		if lastProcessed > 0 {
-			interval = j.activeInterval
+			interval = activeInterval
 		}
 
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(interval):
-			lastProcessed = j.tick(ctx)
 		}
+
+		if !cfg.Enabled {
+			lastProcessed = 0
+			continue
+		}
+
+		lastProcessed = j.tick(ctx, cfg.BatchSize, cfg.MaxRetries)
 	}
 }
 
-func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) int {
+func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context, batchSize int, maxRetryCount int) int {
 	tickStart := time.Now()
 	defer func() {
 		j.metrics.ReportTickDuration(time.Since(tickStart))
 	}()
 
-	records, err := j.outboxRepo.GetPending(ctx, j.batchSize)
+	records, err := j.outboxRepo.GetPending(ctx, batchSize)
 	if err != nil {
 		slog.ErrorContext(ctx, "ReservationConfirmationOutboxJob: GetPending failed", "err", err)
 		return 0
@@ -127,7 +132,7 @@ func (j *ReservationConfirmationOutboxJob) tick(ctx context.Context) int {
 			continue
 		}
 
-		if rec.RetryCount+1 >= j.maxRetryCount {
+		if rec.RetryCount+1 >= maxRetryCount {
 			if dlErr := j.outboxRepo.MarkDeadLetter(ctx, id, reason); dlErr != nil {
 				slog.ErrorContext(ctx, "ReservationConfirmationOutboxJob: MarkDeadLetter failed", "id", id, "err", dlErr)
 			}

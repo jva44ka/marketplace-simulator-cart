@@ -40,6 +40,8 @@ type Config struct {
 		Enabled      bool   `yaml:"enabled"`
 		OtlpEndpoint string `yaml:"otlp-endpoint"`
 	} `yaml:"tracing"`
+
+	Etcd *EtcdConfig `yaml:"etcd"` // nil = etcd отключён, graceful degradation
 }
 
 type CircuitBreakerConfig struct {
@@ -71,6 +73,12 @@ type ReservationConfirmationOutboxConfig struct {
 type ReservationConfirmationOutboxMonitorConfig struct {
 	Enabled     bool   `yaml:"enabled"`
 	JobInterval string `yaml:"job-interval"`
+}
+
+type EtcdConfig struct {
+	Endpoints   []string `yaml:"endpoints"`
+	DialTimeout string   `yaml:"dial-timeout"`
+	ConfigKey   string   `yaml:"config-key"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

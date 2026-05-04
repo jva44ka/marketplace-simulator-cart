@@ -2,7 +2,6 @@ package interceptors
 
 import (
 	"context"
-	"fmt"
 	"math"
 	"math/rand/v2"
 	"time"
@@ -13,17 +12,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func NewRetryInterceptor(cfg config.RetryConfig) (grpc.UnaryClientInterceptor, error) {
-	initialBackoff, err := time.ParseDuration(cfg.InitialBackoff)
-	if err != nil {
-		return nil, fmt.Errorf("parse retry initial-backoff: %w", err)
-	}
-
-	maxBackoff, err := time.ParseDuration(cfg.MaxBackoff)
-	if err != nil {
-		return nil, fmt.Errorf("parse retry max-backoff: %w", err)
-	}
-
+// NewRetryInterceptor создаёт gRPC interceptor с retry + exponential backoff + jitter.
+// Настройки читаются из ConfigStore на каждом вызове, поэтому изменения в etcd
+// применяются немедленно без перезапуска.
+func NewRetryInterceptor(cfgStore *config.ConfigStore) grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,
 		method string,
@@ -32,7 +24,21 @@ func NewRetryInterceptor(cfg config.RetryConfig) (grpc.UnaryClientInterceptor, e
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-		var err error
+		cfg := cfgStore.Load().Products.Retry
+		if !cfg.Enabled {
+			return invoker(ctx, method, req, reply, cc, opts...)
+		}
+
+		initialBackoff, err := time.ParseDuration(cfg.InitialBackoff)
+		if err != nil {
+			initialBackoff = 100 * time.Millisecond
+		}
+		maxBackoff, err := time.ParseDuration(cfg.MaxBackoff)
+		if err != nil {
+			maxBackoff = time.Second
+		}
+
+		var lastErr error
 		for attempt := 0; attempt < cfg.MaxAttempts; attempt++ {
 			if attempt > 0 {
 				backoff := calcBackoff(attempt, initialBackoff, maxBackoff, cfg.Multiplier, cfg.JitterFactor)
@@ -43,13 +49,13 @@ func NewRetryInterceptor(cfg config.RetryConfig) (grpc.UnaryClientInterceptor, e
 				}
 			}
 
-			err = invoker(ctx, method, req, reply, cc, opts...)
-			if err == nil || !isRetryable(err) {
-				return err
+			lastErr = invoker(ctx, method, req, reply, cc, opts...)
+			if lastErr == nil || !isRetryable(lastErr) {
+				return lastErr
 			}
 		}
-		return err
-	}, nil
+		return lastErr
+	}
 }
 
 func isRetryable(err error) bool {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/config"
@@ -14,10 +15,54 @@ import (
 )
 
 type Executor struct {
-	cb *gobreaker.CircuitBreaker[any]
+	cb   atomic.Pointer[gobreaker.CircuitBreaker[any]]
+	name string
 }
 
 func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error) {
+	cb, err := buildCircuitBreaker(cfg, name)
+	if err != nil {
+		return nil, err
+	}
+
+	e := &Executor{name: name}
+	e.cb.Store(cb)
+	return e, nil
+}
+
+// Update пересоздаёт CircuitBreaker с новыми настройками атомарно.
+// Вызывается при изменении конфига в etcd.
+func (e *Executor) Update(cfg config.CircuitBreakerConfig) {
+	cb, err := buildCircuitBreaker(cfg, e.name)
+	if err != nil {
+		slog.Error("circuitbreaker: failed to apply new config", "name", e.name, "err", err)
+		return
+	}
+	e.cb.Store(cb)
+	slog.Info("circuitbreaker: config updated", "name", e.name)
+}
+
+func (e *Executor) Execute(fn func() (any, error)) (any, error) {
+	return e.cb.Load().Execute(fn)
+}
+
+func (e *Executor) UnaryClientInterceptor() grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		_, err := e.cb.Load().Execute(func() (any, error) {
+			return nil, invoker(ctx, method, req, reply, cc, opts...)
+		})
+		return err
+	}
+}
+
+func buildCircuitBreaker(cfg config.CircuitBreakerConfig, name string) (*gobreaker.CircuitBreaker[any], error) {
 	interval, err := time.ParseDuration(cfg.Interval)
 	if err != nil {
 		return nil, fmt.Errorf("parse circuit-breaker interval: %w", err)
@@ -49,15 +94,14 @@ func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error
 				codes.InvalidArgument,
 				codes.PermissionDenied,
 				codes.Unauthenticated,
-				codes.Aborted: // штатный ответ, не имеет смысла открывать CB
+				codes.Aborted:
 				return true
 			case codes.Unavailable,
 				codes.DeadlineExceeded,
 				codes.ResourceExhausted,
-				codes.Internal: // проблемы с сервисом, считаем отказом, открываем CB.
+				codes.Internal:
 				return false
 			default:
-				// неизвестная ошибка - считаем как проблемы с сервисом и открываем CB.
 				return false
 			}
 		},
@@ -76,25 +120,5 @@ func NewExecutor(cfg config.CircuitBreakerConfig, name string) (*Executor, error
 		},
 	}
 
-	return &Executor{cb: gobreaker.NewCircuitBreaker[any](settings)}, nil
-}
-
-func (e *Executor) Execute(fn func() (any, error)) (any, error) {
-	return e.cb.Execute(fn)
-}
-
-func (e *Executor) UnaryClientInterceptor() grpc.UnaryClientInterceptor {
-	return func(
-		ctx context.Context,
-		method string,
-		req, reply any,
-		cc *grpc.ClientConn,
-		invoker grpc.UnaryInvoker,
-		opts ...grpc.CallOption,
-	) error {
-		_, err := e.cb.Execute(func() (any, error) {
-			return nil, invoker(ctx, method, req, reply, cc, opts...)
-		})
-		return err
-	}
+	return gobreaker.NewCircuitBreaker[any](settings), nil
 }
