@@ -46,10 +46,10 @@ type Config struct {
 
 type CircuitBreakerConfig struct {
 	Enabled           bool    `yaml:"enabled"`
-	HalfOpenRequests  uint32  `yaml:"half-open-requests"` // кол-во запросов в half-open состоянии
-	Interval          string  `yaml:"interval"`           // окно сброса счётчиков в closed состоянии
-	Timeout           string  `yaml:"timeout"`            // время в open состоянии перед переходом в half-open
-	Threshold         float64 `yaml:"threshold"`          // доля ошибок для открытия (0.0–1.0)
+	HalfOpenRequests  uint32  `yaml:"half-open-requests"`   // кол-во запросов в half-open состоянии
+	Interval          string  `yaml:"interval"`             // окно сброса счётчиков в closed состоянии
+	Timeout           string  `yaml:"timeout"`              // время в open состоянии перед переходом в half-open
+	Threshold         float64 `yaml:"threshold"`            // доля ошибок для открытия (0.0–1.0)
 	MinRequestsToTrip uint32  `yaml:"min-requests-to-trip"` // минимум запросов в окне перед проверкой threshold
 }
 
@@ -76,6 +76,7 @@ type ReservationConfirmationOutboxMonitorConfig struct {
 }
 
 type EtcdConfig struct {
+	Enabled     bool     `yaml:"enabled"`
 	Endpoints   []string `yaml:"endpoints"`
 	DialTimeout string   `yaml:"dial-timeout"`
 	ConfigKey   string   `yaml:"config-key"`
