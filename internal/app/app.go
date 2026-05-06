@@ -54,7 +54,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	// --- etcd: подключение и первоначальная загрузка ---
 	var etcdClient *clientv3.Client
-	if cfg.Etcd != nil {
+	if cfg.Etcd.Enabled {
 		var err error
 		etcdClient, err = etcdPkg.NewClient(cfg.Etcd)
 		if err != nil {
@@ -96,7 +96,7 @@ func NewApp(cfg *config.Config) (*App, error) {
 	}
 
 	etcdConfigKey := ""
-	if cfg.Etcd != nil {
+	if cfg.Etcd.Enabled {
 		etcdConfigKey = cfg.Etcd.ConfigKey
 	}
 

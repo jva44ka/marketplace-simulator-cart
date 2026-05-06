@@ -26,6 +26,7 @@ const (
 type GetProductRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sku           uint64                 `protobuf:"varint,1,opt,name=sku,proto3" json:"sku,omitempty"`
+	TransactionId *uint32                `protobuf:"varint,2,opt,name=transaction_id,json=transactionId,proto3,oneof" json:"transaction_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -67,12 +68,20 @@ func (x *GetProductRequest) GetSku() uint64 {
 	return 0
 }
 
+func (x *GetProductRequest) GetTransactionId() uint32 {
+	if x != nil && x.TransactionId != nil {
+		return *x.TransactionId
+	}
+	return 0
+}
+
 type GetProductResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sku           uint64                 `protobuf:"varint,1,opt,name=sku,proto3" json:"sku,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Count         uint32                 `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`
 	Price         float64                `protobuf:"fixed64,4,opt,name=price,proto3" json:"price,omitempty"`
+	TransactionId uint32                 `protobuf:"varint,5,opt,name=transaction_id,json=transactionId,proto3" json:"transaction_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -131,6 +140,13 @@ func (x *GetProductResponse) GetCount() uint32 {
 func (x *GetProductResponse) GetPrice() float64 {
 	if x != nil {
 		return x.Price
+	}
+	return 0
+}
+
+func (x *GetProductResponse) GetTransactionId() uint32 {
+	if x != nil {
+		return x.TransactionId
 	}
 	return 0
 }
@@ -623,14 +639,17 @@ var File_internal_infra_external_services_products_proto_products_v1_products_pr
 
 const file_internal_infra_external_services_products_proto_products_v1_products_proto_rawDesc = "" +
 	"\n" +
-	"Jinternal/infra/external_services/products/proto/products/v1/products.proto\x12\bproducts\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"%\n" +
+	"Jinternal/infra/external_services/products/proto/products/v1/products.proto\x12\bproducts\x1a\x1cgoogle/api/annotations.proto\x1a.protoc-gen-openapiv2/options/annotations.proto\"d\n" +
 	"\x11GetProductRequest\x12\x10\n" +
-	"\x03sku\x18\x01 \x01(\x04R\x03sku\"f\n" +
+	"\x03sku\x18\x01 \x01(\x04R\x03sku\x12*\n" +
+	"\x0etransaction_id\x18\x02 \x01(\rH\x00R\rtransactionId\x88\x01\x01B\x11\n" +
+	"\x0f_transaction_id\"\x8d\x01\n" +
 	"\x12GetProductResponse\x12\x10\n" +
 	"\x03sku\x18\x01 \x01(\x04R\x03sku\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05count\x18\x03 \x01(\rR\x05count\x12\x14\n" +
-	"\x05price\x18\x04 \x01(\x01R\x05price\"\xbf\x01\n" +
+	"\x05price\x18\x04 \x01(\x01R\x05price\x12%\n" +
+	"\x0etransaction_id\x18\x05 \x01(\rR\rtransactionId\"\xbf\x01\n" +
 	"\x1bIncreaseProductCountRequest\x12[\n" +
 	"\bproducts\x18\x01 \x03(\v2?.products.IncreaseProductCountRequest.IncreaseProductCountBatchR\bproducts\x1aC\n" +
 	"\x19IncreaseProductCountBatch\x12\x10\n" +
@@ -721,6 +740,7 @@ func file_internal_infra_external_services_products_proto_products_v1_products_p
 	if File_internal_infra_external_services_products_proto_products_v1_products_proto != nil {
 		return
 	}
+	file_internal_infra_external_services_products_proto_products_v1_products_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
