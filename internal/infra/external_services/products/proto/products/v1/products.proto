@@ -76,6 +76,7 @@ service Products {
 
 message GetProductRequest {
   uint64 sku = 1;
+  optional uint32 transaction_id = 2;
 }
 
 message GetProductResponse {
@@ -83,6 +84,7 @@ message GetProductResponse {
   string name = 2;
   uint32 count = 3;
   double price = 4;
+  uint32 transaction_id = 5;
 }
 
 message IncreaseProductCountRequest {
