@@ -6,7 +6,9 @@
       "Bash(go mod:*)",
       "Bash(go build:*)",
       "Bash(git fetch:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Read(//c/Git/**)",
+      "Read(//c/Git//**)"
     ]
   }
 }
