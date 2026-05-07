@@ -8,10 +8,9 @@ import (
 )
 
 type OutboxMetrics struct {
-	recordsProcessed     *prometheus.CounterVec
-	tickDuration         prometheus.Histogram
-	confirmationDuration prometheus.Histogram
-	recordAge            prometheus.Histogram
+	recordsProcessed *prometheus.CounterVec
+	tickDuration     prometheus.Histogram
+	recordAge        prometheus.Histogram
 }
 
 func NewOutboxMetrics() *OutboxMetrics {
@@ -19,24 +18,19 @@ func NewOutboxMetrics() *OutboxMetrics {
 		recordsProcessed: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name:        "outbox_records_processed_total",
 			Help:        "Total number of outbox records processed",
-			ConstLabels: prometheus.Labels{"service": "cart"},
+			ConstLabels: prometheus.Labels{"service": "cart", "job": "ReservationConfirmation"},
 		}, []string{"status"}),
 		tickDuration: promauto.NewHistogram(prometheus.HistogramOpts{
 			Name:        "outbox_tick_duration_seconds",
 			Help:        "Duration of outbox job tick in seconds",
 			Buckets:     prometheus.DefBuckets,
-			ConstLabels: prometheus.Labels{"service": "cart"},
-		}),
-		confirmationDuration: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name:    "cart_outbox_confirmation_duration_seconds",
-			Help:    "Duration of ConfirmReservation call in seconds",
-			Buckets: prometheus.DefBuckets,
+			ConstLabels: prometheus.Labels{"service": "cart", "job": "ReservationConfirmation"},
 		}),
 		recordAge: promauto.NewHistogram(prometheus.HistogramOpts{
 			Name:        "outbox_record_age_seconds",
 			Help:        "Age of outbox record at processing time in seconds",
 			Buckets:     []float64{0.1, 0.5, 1, 2, 5, 10, 30, 60, 120, 300},
-			ConstLabels: prometheus.Labels{"service": "cart"},
+			ConstLabels: prometheus.Labels{"service": "cart", "job": "ReservationConfirmation"},
 		}),
 	}
 }
@@ -47,10 +41,6 @@ func (m *OutboxMetrics) ReportProcessed(status string, count int) {
 
 func (m *OutboxMetrics) ReportTickDuration(d time.Duration) {
 	m.tickDuration.Observe(d.Seconds())
-}
-
-func (m *OutboxMetrics) ReportConfirmationDuration(d time.Duration) {
-	m.confirmationDuration.Observe(d.Seconds())
 }
 
 func (m *OutboxMetrics) ReportRecordAge(age time.Duration) {

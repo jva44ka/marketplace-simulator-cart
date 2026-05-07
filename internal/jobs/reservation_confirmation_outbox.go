@@ -29,7 +29,6 @@ type ProductsClient interface {
 type OutboxJobMetrics interface {
 	ReportProcessed(status string, count int)
 	ReportTickDuration(d time.Duration)
-	ReportConfirmationDuration(d time.Duration)
 	ReportRecordAge(age time.Duration)
 }
 
@@ -187,16 +186,13 @@ func (j *ReservationConfirmationOutboxJob) processBatch(
 		recordCtx := otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
 		recordCtx, span := j.tracer.Start(recordCtx, "outbox.ConfirmReservation")
 
-		confirmStart := time.Now()
 		if err := j.productsClient.ConfirmReservation(recordCtx, []int64{data.ReservationId}); err != nil {
 			span.RecordError(err)
 			span.End()
-			j.metrics.ReportConfirmationDuration(time.Since(confirmStart))
 			failedRecordReasons[outboxRecord.RecordId] = err.Error()
 			continue
 		}
 		span.End()
-		j.metrics.ReportConfirmationDuration(time.Since(confirmStart))
 
 		successRecords = append(successRecords, outboxRecord.RecordId)
 	}
