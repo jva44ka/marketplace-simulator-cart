@@ -1,0 +1,143 @@
+package database
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
+	cart_item "github.com/jva44ka/marketplace-simulator-cart/internal/service/cart_item"
+)
+
+type ReservationConfirmationOutboxRepository struct {
+	pool *pgxpool.Pool
+}
+
+func NewReservationConfirmationOutboxRepository(pool *pgxpool.Pool) *ReservationConfirmationOutboxRepository {
+	return &ReservationConfirmationOutboxRepository{pool: pool}
+}
+
+// WithTx returns a transaction-bound view of this repository.
+func (r *ReservationConfirmationOutboxRepository) WithTx(tx pgx.Tx) cart_item.OutboxTxRepository {
+	return &ReservationConfirmationOutboxTxRepository{tx: tx}
+}
+
+// ReservationConfirmationOutboxTxRepository executes outbox writes inside an open transaction.
+type ReservationConfirmationOutboxTxRepository struct {
+	tx pgx.Tx
+}
+
+func (r *ReservationConfirmationOutboxTxRepository) Create(ctx context.Context, rec model.ReservationConfirmationOutboxRecordNew) error {
+	const query = `
+INSERT INTO outbox.reservation_confirmation_events (key, data, headers)
+VALUES ($1, $2, $3)`
+
+	_, err := r.tx.Exec(ctx, query, rec.Key, rec.Data, rec.Headers)
+	if err != nil {
+		return fmt.Errorf("ReservationConfirmationOutboxTxRepository.Create: %w", err)
+	}
+	return nil
+}
+
+// ── non-transactional methods ──────────────────────────────────────────────
+
+func (r *ReservationConfirmationOutboxRepository) GetPending(ctx context.Context, limit int) ([]model.ReservationConfirmationOutboxRecord, error) {
+	const query = `
+SELECT DISTINCT ON (key)
+    record_id,
+    key,
+    data,
+    headers,
+    created_at,
+    retry_count,
+    is_dead_letter,
+    marked_as_dead_letter_at,
+    dead_letter_reason
+FROM outbox.reservation_confirmation_events
+WHERE is_dead_letter = FALSE
+ORDER BY key, created_at
+LIMIT $1`
+
+	rows, err := r.pool.Query(ctx, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("ReservationConfirmationOutboxRepository.GetPending: %w", err)
+	}
+	defer rows.Close()
+
+	var result []model.ReservationConfirmationOutboxRecord
+	for rows.Next() {
+		var rec model.ReservationConfirmationOutboxRecord
+		if err = rows.Scan(
+			&rec.RecordId,
+			&rec.Key,
+			&rec.Data,
+			&rec.Headers,
+			&rec.CreatedAt,
+			&rec.RetryCount,
+			&rec.IsDeadLetter,
+			&rec.MarkedAsDeadLetterAt,
+			&rec.DeadLetterReason,
+		); err != nil {
+			return nil, fmt.Errorf("ReservationConfirmationOutboxRepository.GetPending scan: %w", err)
+		}
+		result = append(result, rec)
+	}
+
+	return result, nil
+}
+
+func (r *ReservationConfirmationOutboxRepository) CountPending(ctx context.Context) (int64, error) {
+	const query = `SELECT COUNT(*) FROM outbox.reservation_confirmation_events WHERE is_dead_letter = FALSE`
+
+	var count int64
+	if err := r.pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("ReservationConfirmationOutboxRepository.CountPending: %w", err)
+	}
+	return count, nil
+}
+
+func (r *ReservationConfirmationOutboxRepository) CountDeadLetters(ctx context.Context) (int64, error) {
+	const query = `SELECT COUNT(*) FROM outbox.reservation_confirmation_events WHERE is_dead_letter = TRUE`
+
+	var count int64
+	if err := r.pool.QueryRow(ctx, query).Scan(&count); err != nil {
+		return 0, fmt.Errorf("ReservationConfirmationOutboxRepository.CountDeadLetters: %w", err)
+	}
+	return count, nil
+}
+
+func (r *ReservationConfirmationOutboxRepository) DeleteBatch(ctx context.Context, ids []uuid.UUID) error {
+	const query = `DELETE FROM outbox.reservation_confirmation_events WHERE record_id = ANY($1)`
+
+	_, err := r.pool.Exec(ctx, query, ids)
+	if err != nil {
+		return fmt.Errorf("ReservationConfirmationOutboxRepository.DeleteBatch: %w", err)
+	}
+	return nil
+}
+
+func (r *ReservationConfirmationOutboxRepository) IncrementRetry(ctx context.Context, id uuid.UUID) error {
+	const query = `UPDATE outbox.reservation_confirmation_events SET retry_count = retry_count + 1 WHERE record_id = $1`
+
+	_, err := r.pool.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("ReservationConfirmationOutboxRepository.IncrementRetry: %w", err)
+	}
+	return nil
+}
+
+func (r *ReservationConfirmationOutboxRepository) MarkDeadLetter(ctx context.Context, id uuid.UUID, reason string) error {
+	const query = `
+UPDATE outbox.reservation_confirmation_events
+SET is_dead_letter = TRUE, marked_as_dead_letter_at = $2, dead_letter_reason = $3
+WHERE record_id = $1`
+
+	_, err := r.pool.Exec(ctx, query, id, time.Now(), reason)
+	if err != nil {
+		return fmt.Errorf("ReservationConfirmationOutboxRepository.MarkDeadLetter: %w", err)
+	}
+	return nil
+}
