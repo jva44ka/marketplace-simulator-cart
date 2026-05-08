@@ -1,4 +1,4 @@
-package cart_item
+package usecases
 
 import (
 	"context"
@@ -9,12 +9,30 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
-func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {
+type AddProductUseCase struct {
+	cartItems     CartItemRepository
+	localProducts LocalProductRepository
+	productClient ProductClient
+}
+
+func NewAddProductUseCase(
+	cartItems CartItemRepository,
+	localProducts LocalProductRepository,
+	productClient ProductClient,
+) *AddProductUseCase {
+	return &AddProductUseCase{
+		cartItems:     cartItems,
+		localProducts: localProducts,
+		productClient: productClient,
+	}
+}
+
+func (uc *AddProductUseCase) AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {
 	if count < 1 {
 		return model.ErrProductsCountMustBeGreaterThanNull
 	}
 
-	productInMasterSystem, err := s.productClient.GetBySku(ctx, sku)
+	productInMasterSystem, err := uc.productClient.GetBySku(ctx, sku)
 	if err != nil {
 		return fmt.Errorf("productClient.GetBySku: %w", err)
 	}
@@ -23,22 +41,21 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 		return model.ErrInsufficientStock
 	}
 
-	existingCartItem, err := s.cartItemRepository.GetByUserIdAndSku(ctx, userId, sku)
+	existingCartItem, err := uc.cartItems.GetByUserIdAndSku(ctx, userId, sku)
 	if err != nil && !errors.Is(err, model.ErrCartItemsNotFound) {
 		return fmt.Errorf("cartItemRepository.GetByUserIdAndSku: %w", err)
 	}
 
 	if existingCartItem != nil {
-		return s.cartItemRepository.Update(ctx, existingCartItem.Id, model.CartItem{
+		return uc.cartItems.Update(ctx, existingCartItem.Id, model.CartItem{
 			Count: existingCartItem.Count + count,
 		})
 	}
 
-	// Убеждаемся что продукт есть в локальной БД
-	_, err = s.productRepository.GetProductBySku(ctx, sku)
+	_, err = uc.localProducts.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
-			_, err = s.productRepository.AddProduct(ctx, model.Product{
+			_, err = uc.localProducts.AddProduct(ctx, model.Product{
 				Sku:   sku,
 				Price: productInMasterSystem.Price,
 				Name:  productInMasterSystem.Name,
@@ -51,7 +68,7 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 		}
 	}
 
-	_, err = s.cartItemRepository.Create(ctx, model.CartItem{
+	_, err = uc.cartItems.Create(ctx, model.CartItem{
 		UserId: userId,
 		Count:  count,
 		Product: model.Product{
