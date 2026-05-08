@@ -22,31 +22,31 @@ type CheckoutMetrics interface {
 }
 
 type CartItemService struct {
-	transactor      Transactor
-	cartItems       CartItemRepository
-	products        LocalProductRepository
-	outbox          OutboxRepository
-	productClient   ProductClient
-	recordBuilder   RecordBuilder
-	checkoutMetrics CheckoutMetrics
+	transactor          Transactor
+	cartItemRepository  CartItemRepository
+	productRepository   ProductRepository
+	outbox              OutboxRepository
+	productClient       ProductClient
+	outboxRecordBuilder RecordBuilder
+	checkoutMetrics     CheckoutMetrics
 }
 
 func NewCartItemService(
 	transactor Transactor,
 	cartItems CartItemRepository,
-	products LocalProductRepository,
+	products ProductRepository,
 	outbox OutboxRepository,
 	productClient ProductClient,
 	recordBuilder RecordBuilder,
 	checkoutMetrics CheckoutMetrics,
 ) *CartItemService {
 	return &CartItemService{
-		transactor:      transactor,
-		cartItems:       cartItems,
-		products:        products,
-		outbox:          outbox,
-		productClient:   productClient,
-		recordBuilder:   recordBuilder,
-		checkoutMetrics: checkoutMetrics,
+		transactor:          transactor,
+		cartItemRepository:  cartItems,
+		productRepository:   products,
+		outbox:              outbox,
+		productClient:       productClient,
+		outboxRecordBuilder: recordBuilder,
+		checkoutMetrics:     checkoutMetrics,
 	}
 }

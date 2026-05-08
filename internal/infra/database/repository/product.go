@@ -1,4 +1,4 @@
-package database
+package repository
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
-
 
 type ProductRepositoryMetrics interface {
 	ReportRequest(method, status string, duration time.Duration)

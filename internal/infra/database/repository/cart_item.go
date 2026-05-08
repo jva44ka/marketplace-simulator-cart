@@ -1,4 +1,4 @@
-package database
+package repository
 
 import (
 	"context"
@@ -25,15 +25,13 @@ func NewPgxCartItemRepository(pool *pgxpool.Pool, metrics CartItemRepositoryMetr
 	return &PgxCartItemRepository{pool: pool, metrics: metrics}
 }
 
-// WithTx returns a transaction-bound view of this repository.
-func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) *PgxCartItemTxRepository {
-	return &PgxCartItemTxRepository{tx: tx, metrics: r.metrics}
-}
-
-// PgxCartItemTxRepository executes cart-item writes inside an open transaction.
 type PgxCartItemTxRepository struct {
 	tx      pgx.Tx
 	metrics CartItemRepositoryMetrics
+}
+
+func NewPgxCartItemTxRepository(tx pgx.Tx, metrics CartItemRepositoryMetrics) *PgxCartItemTxRepository {
+	return &PgxCartItemTxRepository{tx: tx, metrics: metrics}
 }
 
 func (r *PgxCartItemTxRepository) RemoveByUserId(ctx context.Context, userId uuid.UUID) error {
@@ -49,8 +47,6 @@ func (r *PgxCartItemTxRepository) RemoveByUserId(ctx context.Context, userId uui
 	r.metrics.ReportRequest("RemoveByUserId", "success", time.Since(start))
 	return nil
 }
-
-// ── non-transactional methods ──────────────────────────────────────────────
 
 type cartItemRow struct {
 	id           uint64

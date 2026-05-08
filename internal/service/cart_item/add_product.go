@@ -23,35 +23,35 @@ func (s *CartItemService) AddProduct(ctx context.Context, userId uuid.UUID, sku 
 		return model.ErrInsufficientStock
 	}
 
-	existingCartItem, err := s.cartItems.GetByUserIdAndSku(ctx, userId, sku)
+	existingCartItem, err := s.cartItemRepository.GetByUserIdAndSku(ctx, userId, sku)
 	if err != nil && !errors.Is(err, model.ErrCartItemsNotFound) {
-		return fmt.Errorf("cartItems.GetByUserIdAndSku: %w", err)
+		return fmt.Errorf("cartItemRepository.GetByUserIdAndSku: %w", err)
 	}
 
 	if existingCartItem != nil {
-		return s.cartItems.Update(ctx, existingCartItem.Id, model.CartItem{
+		return s.cartItemRepository.Update(ctx, existingCartItem.Id, model.CartItem{
 			Count: existingCartItem.Count + count,
 		})
 	}
 
 	// Убеждаемся что продукт есть в локальной БД
-	_, err = s.products.GetProductBySku(ctx, sku)
+	_, err = s.productRepository.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
-			_, err = s.products.AddProduct(ctx, model.Product{
+			_, err = s.productRepository.AddProduct(ctx, model.Product{
 				Sku:   sku,
 				Price: productInMasterSystem.Price,
 				Name:  productInMasterSystem.Name,
 			})
 			if err != nil {
-				return fmt.Errorf("products.AddProduct: %w", err)
+				return fmt.Errorf("productRepository.AddProduct: %w", err)
 			}
 		} else {
-			return fmt.Errorf("products.GetProductBySku: %w", err)
+			return fmt.Errorf("productRepository.GetProductBySku: %w", err)
 		}
 	}
 
-	_, err = s.cartItems.Create(ctx, model.CartItem{
+	_, err = s.cartItemRepository.Create(ctx, model.CartItem{
 		UserId: userId,
 		Count:  count,
 		Product: model.Product{

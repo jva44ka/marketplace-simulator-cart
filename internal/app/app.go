@@ -19,7 +19,8 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/app/validation"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/circuitbreaker"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/config"
-	databasePkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database"
+	repoPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database/repository"
+	transactorPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database/transactor"
 	etcdPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/etcd"
 	productsClientPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/external_services/products"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/metrics"
@@ -228,10 +229,10 @@ func bootstrapHandler(cfgStore *config.ConfigStore) (http.Handler, *jobs.Reserva
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
-	cartItemRepo := databasePkg.NewPgxCartItemRepository(pool, dbMetrics)
-	productRepo := databasePkg.NewPgxProductRepository(pool, dbMetrics)
-	outboxRepo := databasePkg.NewReservationConfirmationOutboxRepository(pool)
-	transactor := databasePkg.NewCartServiceTransactor(pool, cartItemRepo, outboxRepo)
+	cartItemRepo := repoPkg.NewPgxCartItemRepository(pool, dbMetrics)
+	productRepo := repoPkg.NewPgxProductRepository(pool, dbMetrics)
+	outboxRepo := repoPkg.NewReservationConfirmationOutboxRepository(pool)
+	transactor := transactorPkg.NewCartServiceTransactor(pool, dbMetrics)
 
 	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
 	businessMetrics := metrics.NewBusinessMetrics()

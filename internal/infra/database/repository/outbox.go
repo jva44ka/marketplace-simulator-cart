@@ -1,4 +1,4 @@
-package database
+package repository
 
 import (
 	"context"
@@ -19,14 +19,12 @@ func NewReservationConfirmationOutboxRepository(pool *pgxpool.Pool) *Reservation
 	return &ReservationConfirmationOutboxRepository{pool: pool}
 }
 
-// WithTx returns a transaction-bound view of this repository.
-func (r *ReservationConfirmationOutboxRepository) WithTx(tx pgx.Tx) *ReservationConfirmationOutboxTxRepository {
-	return &ReservationConfirmationOutboxTxRepository{tx: tx}
-}
-
-// ReservationConfirmationOutboxTxRepository executes outbox writes inside an open transaction.
 type ReservationConfirmationOutboxTxRepository struct {
 	tx pgx.Tx
+}
+
+func NewReservationConfirmationOutboxTxRepository(tx pgx.Tx) *ReservationConfirmationOutboxTxRepository {
+	return &ReservationConfirmationOutboxTxRepository{tx: tx}
 }
 
 func (r *ReservationConfirmationOutboxTxRepository) Create(ctx context.Context, rec model.ReservationConfirmationOutboxRecordNew) error {
@@ -40,8 +38,6 @@ VALUES ($1, $2, $3)`
 	}
 	return nil
 }
-
-// ── non-transactional methods ──────────────────────────────────────────────
 
 func (r *ReservationConfirmationOutboxRepository) GetPending(ctx context.Context, limit int) ([]model.ReservationConfirmationOutboxRecord, error) {
 	const query = `
