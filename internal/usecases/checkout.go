@@ -33,7 +33,7 @@ func NewCheckoutUseCase(
 	}
 }
 
-func (uc *CheckoutUseCase) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
+func (uc *CheckoutUseCase) Execute(ctx context.Context, userId uuid.UUID) (float64, error) {
 	cartItems, err := uc.cartItems.GetByUserId(ctx, userId)
 	if err != nil {
 		return 0.0, fmt.Errorf("cartItemRepository.GetByUserId: %w", err)

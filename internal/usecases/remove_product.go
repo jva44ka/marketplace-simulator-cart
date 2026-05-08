@@ -14,6 +14,6 @@ func NewRemoveProductUseCase(cartItems CartItemRepository) *RemoveProductUseCase
 	return &RemoveProductUseCase{cartItems: cartItems}
 }
 
-func (uc *RemoveProductUseCase) RemoveProduct(ctx context.Context, userId uuid.UUID, sku uint64) error {
+func (uc *RemoveProductUseCase) Execute(ctx context.Context, userId uuid.UUID, sku uint64) error {
 	return uc.cartItems.RemoveByUserIdAndSku(ctx, userId, sku)
 }

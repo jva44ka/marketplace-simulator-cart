@@ -14,6 +14,6 @@ func NewRemoveAllProductsUseCase(cartItems CartItemRepository) *RemoveAllProduct
 	return &RemoveAllProductsUseCase{cartItems: cartItems}
 }
 
-func (uc *RemoveAllProductsUseCase) RemoveAllProducts(ctx context.Context, userId uuid.UUID) error {
+func (uc *RemoveAllProductsUseCase) Execute(ctx context.Context, userId uuid.UUID) error {
 	return uc.cartItems.RemoveByUserId(ctx, userId)
 }

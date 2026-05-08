@@ -9,7 +9,7 @@ import (
 )
 
 type CartService interface {
-	RemoveProduct(ctx context.Context, userId uuid.UUID, sku uint64) error
+	Execute(ctx context.Context, userId uuid.UUID, sku uint64) error
 }
 
 type Validator interface {
@@ -57,7 +57,7 @@ func (h *RemoveProductsFromCartHandler) ServeHTTP(w http.ResponseWriter, r *http
 		return
 	}
 
-	err = h.cartService.RemoveProduct(r.Context(), userId, uint64(sku))
+	err = h.cartService.Execute(r.Context(), userId, uint64(sku))
 	if err != nil {
 		httpPkg.WriteServiceError(w, err)
 		return

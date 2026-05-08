@@ -9,7 +9,7 @@ import (
 )
 
 type CartService interface {
-	Checkout(ctx context.Context, userId uuid.UUID) (float64, error)
+	Execute(ctx context.Context, userId uuid.UUID) (float64, error)
 }
 
 type Validator interface {
@@ -51,7 +51,7 @@ func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalPrice, err := h.cartService.Checkout(r.Context(), userId)
+	totalPrice, err := h.cartService.Execute(r.Context(), userId)
 	if err != nil {
 		httpPkg.WriteServiceError(w, err)
 		return
