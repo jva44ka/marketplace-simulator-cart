@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
-	"github.com/jva44ka/marketplace-simulator-cart/internal/service"
 )
 
 type RecordBuilder interface {
@@ -23,22 +22,31 @@ type CheckoutMetrics interface {
 }
 
 type CartItemService struct {
-	db              service.DBManager
-	productClient   ProductClient
-	recordBuilder   RecordBuilder
-	checkoutMetrics CheckoutMetrics
+	transactor          Transactor
+	cartItemRepository  CartItemRepository
+	productRepository   ProductRepository
+	outbox              OutboxRepository
+	productClient       ProductClient
+	outboxRecordBuilder RecordBuilder
+	checkoutMetrics     CheckoutMetrics
 }
 
 func NewCartItemService(
-	db service.DBManager,
+	transactor Transactor,
+	cartItems CartItemRepository,
+	products ProductRepository,
+	outbox OutboxRepository,
 	productClient ProductClient,
 	recordBuilder RecordBuilder,
 	checkoutMetrics CheckoutMetrics,
 ) *CartItemService {
 	return &CartItemService{
-		db:              db,
-		productClient:   productClient,
-		recordBuilder:   recordBuilder,
-		checkoutMetrics: checkoutMetrics,
+		transactor:          transactor,
+		cartItemRepository:  cartItems,
+		productRepository:   products,
+		outbox:              outbox,
+		productClient:       productClient,
+		outboxRecordBuilder: recordBuilder,
+		checkoutMetrics:     checkoutMetrics,
 	}
 }

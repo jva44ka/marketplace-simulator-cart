@@ -19,7 +19,8 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/app/validation"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/circuitbreaker"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/config"
-	databasePkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database"
+	repoPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database/repository"
+	transactorPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/database/transactor"
 	etcdPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/etcd"
 	productsClientPkg "github.com/jva44ka/marketplace-simulator-cart/internal/infra/external_services/products"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/metrics"
@@ -228,25 +229,32 @@ func bootstrapHandler(cfgStore *config.ConfigStore) (http.Handler, *jobs.Reserva
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
-	db := databasePkg.NewDBManager(pool, dbMetrics)
+	cartItemRepo := repoPkg.NewPgxCartItemRepository(pool, dbMetrics)
+	productRepo := repoPkg.NewPgxProductRepository(pool, dbMetrics)
+	outboxRepo := repoPkg.NewReservationConfirmationOutboxRepository(pool)
+	transactor := transactorPkg.NewCartServiceTransactor(pool, dbMetrics)
+
 	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
 	businessMetrics := metrics.NewBusinessMetrics()
-	cartService := cartItemPkg.NewCartItemService(db, productClient, recordBuilder, businessMetrics)
+	cartService := cartItemPkg.NewCartItemService(
+		transactor, cartItemRepo, productRepo, outboxRepo,
+		productClient, recordBuilder, businessMetrics,
+	)
 	validator := validation.Validator{}
 
 	outboxMetrics := metrics.NewOutboxMetrics()
 	metricCollectorMetrics := metrics.NewMetricCollectorMetrics()
 
 	outboxJob := jobs.NewReservationConfirmationOutboxJob(
-		db.OutboxPgxRepo(),
+		outboxRepo,
 		productClient,
 		outboxMetrics,
 		cfgStore,
 	)
 
 	metricCollectorJob := jobs.NewMetricCollectorJob(
-		db.OutboxPgxRepo(),
-		db.CartItemPgxRepo(),
+		outboxRepo,
+		cartItemRepo,
 		pool,
 		metricCollectorMetrics,
 		cfgStore,

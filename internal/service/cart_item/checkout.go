@@ -6,12 +6,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
 func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
-	cartItems, err := s.db.CartItemRepo().GetByUserId(ctx, userId)
+	cartItems, err := s.cartItemRepository.GetByUserId(ctx, userId)
 	if err != nil {
 		return 0.0, fmt.Errorf("cartRepository.GetByUserId: %w", err)
 	}
@@ -34,7 +33,7 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return 0.0, fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
-	outboxRecords, err := s.recordBuilder.BuildRecords(ctx, cartItems, reservationIds)
+	outboxRecords, err := s.outboxRecordBuilder.BuildRecords(ctx, cartItems, reservationIds)
 	if err != nil {
 		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
@@ -43,17 +42,16 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		}
 
 		s.checkoutMetrics.RecordFailure("internal")
-		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
+		return 0.0, fmt.Errorf("outboxRecordBuilder.BuildRecords: %w", err)
 	}
 
-	err = s.db.InTransaction(ctx, func(tx pgx.Tx) error {
-		if err = s.db.CartItemRepo().WithTx(tx).RemoveByUserId(ctx, userId); err != nil {
-			return fmt.Errorf("cartItemTxRepo.RemoveByUserId: %w", err)
+	err = s.transactor.InTransaction(ctx, func(txCartItems TxCartItemRepository, txOutbox TxOutboxRepository) error {
+		if err = txCartItems.RemoveByUserId(ctx, userId); err != nil {
+			return fmt.Errorf("cartItemRepository.RemoveByUserId: %w", err)
 		}
-		outboxTxRepo := s.db.OutboxRepo().WithTx(tx)
 		for _, rec := range outboxRecords {
-			if err = outboxTxRepo.Create(ctx, rec); err != nil {
-				return fmt.Errorf("outboxTxRepo.Create: %w", err)
+			if err = txOutbox.Create(ctx, rec); err != nil {
+				return fmt.Errorf("outbox.Create: %w", err)
 			}
 		}
 		return nil

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
@@ -24,14 +23,8 @@ func NewPgxProductRepository(pool *pgxpool.Pool, metrics ProductRepositoryMetric
 	return &PgxProductRepository{pool: pool, metrics: metrics}
 }
 
-type ProductRow struct {
-	Sku   uint64
-	Price float64
-	Name  string
-}
-
 func (r *PgxProductRepository) GetProductBySku(ctx context.Context, sku uint64) (model.Product, error) {
-	products, err := r.GetProductsBySku(ctx, []uint64{sku})
+	products, err := r.getProductsBySku(ctx, []uint64{sku})
 	if err != nil {
 		return model.Product{}, err
 	}
@@ -39,13 +32,12 @@ func (r *PgxProductRepository) GetProductBySku(ctx context.Context, sku uint64) 
 		return model.Product{}, model.ErrProductNotFound
 	}
 	if len(products) > 1 {
-		return model.Product{}, errors.New("more than one products returned from db")
+		return model.Product{}, errors.New("more than one product returned from db")
 	}
-
 	return products[0], nil
 }
 
-func (r *PgxProductRepository) GetProductsBySku(ctx context.Context, skus []uint64) ([]model.Product, error) {
+func (r *PgxProductRepository) getProductsBySku(ctx context.Context, skus []uint64) ([]model.Product, error) {
 	const query = `
 SELECT sku, price, name
 FROM products
@@ -56,37 +48,19 @@ ORDER BY sku DESC`
 	rows, err := r.pool.Query(ctx, query, skus)
 	if err != nil {
 		r.metrics.ReportRequest("GetProductsBySku", "error", time.Since(start))
-		return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
+		return nil, fmt.Errorf("PgxProductRepository.GetProductsBySku: %w", err)
 	}
-
-	var productRows []ProductRow
-	for rows.Next() {
-		var productRow ProductRow
-		err = rows.Scan(
-			&productRow.Sku,
-			&productRow.Price,
-			&productRow.Name,
-		)
-
-		if err != nil {
-			r.metrics.ReportRequest("GetProductsBySku", "error", time.Since(start))
-			return nil, fmt.Errorf("ProductRepository.GetProductsBySku: %w", err)
-		}
-
-		productRows = append(productRows, productRow)
-	}
+	defer rows.Close()
 
 	var result []model.Product
-
-	for _, productRow := range productRows {
-		result = append(result, model.Product{
-			Sku:   productRow.Sku,
-			Price: productRow.Price,
-			Name:  productRow.Name,
-		})
+	for rows.Next() {
+		var p model.Product
+		if err = rows.Scan(&p.Sku, &p.Price, &p.Name); err != nil {
+			r.metrics.ReportRequest("GetProductsBySku", "error", time.Since(start))
+			return nil, fmt.Errorf("PgxProductRepository.GetProductsBySku: %w", err)
+		}
+		result = append(result, p)
 	}
-
-	defer rows.Close()
 
 	r.metrics.ReportRequest("GetProductsBySku", "success", time.Since(start))
 	return result, nil
@@ -94,19 +68,14 @@ ORDER BY sku DESC`
 
 func (r *PgxProductRepository) AddProduct(ctx context.Context, product model.Product) (*model.Product, error) {
 	const query = `
-INSERT INTO
-    products (sku, price, name)
-VALUES
-    ($1, $2, $3);`
+INSERT INTO products (sku, price, name)
+VALUES ($1, $2, $3)`
 
 	start := time.Now()
-	err := pgx.BeginTxFunc(ctx, r.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, query, product.Sku, product.Price, product.Name)
-		return err
-	})
+	_, err := r.pool.Exec(ctx, query, product.Sku, product.Price, product.Name)
 	if err != nil {
 		r.metrics.ReportRequest("AddProduct", "error", time.Since(start))
-		return nil, fmt.Errorf("failed to insert products: %w", err)
+		return nil, fmt.Errorf("PgxProductRepository.AddProduct: %w", err)
 	}
 
 	r.metrics.ReportRequest("AddProduct", "success", time.Since(start))
