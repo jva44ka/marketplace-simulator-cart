@@ -9,8 +9,8 @@ import (
 	httpPkg "github.com/jva44ka/marketplace-simulator-cart/pkg/http"
 )
 
-type CartService interface {
-	GetUserCart(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error)
+type GetCartItemsByUserIdUseCase interface {
+	Execute(ctx context.Context, userId uuid.UUID) ([]model.CartItem, float64, error)
 }
 
 type Validator interface {
@@ -19,14 +19,14 @@ type Validator interface {
 }
 
 type GetCartItemsByUserIdHandler struct {
-	cartService CartService
-	validator   Validator
+	useCase   GetCartItemsByUserIdUseCase
+	validator Validator
 }
 
-func NewGetCartItemsByUserIdHandler(cartService CartService, validator Validator) *GetCartItemsByUserIdHandler {
+func NewGetCartItemsByUserIdHandler(useCase GetCartItemsByUserIdUseCase, validator Validator) *GetCartItemsByUserIdHandler {
 	return &GetCartItemsByUserIdHandler{
-		cartService: cartService,
-		validator:   validator,
+		useCase:   useCase,
+		validator: validator,
 	}
 }
 
@@ -49,7 +49,7 @@ func (h *GetCartItemsByUserIdHandler) ServeHTTP(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	cartItems, totalPrice, err := h.cartService.GetUserCart(r.Context(), userId)
+	cartItems, totalPrice, err := h.useCase.Execute(r.Context(), userId)
 	if err != nil {
 		httpPkg.WriteServiceError(w, err)
 		return

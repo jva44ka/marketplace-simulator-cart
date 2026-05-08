@@ -8,8 +8,8 @@ import (
 	httpPkg "github.com/jva44ka/marketplace-simulator-cart/pkg/http"
 )
 
-type CartService interface {
-	Checkout(ctx context.Context, userId uuid.UUID) (float64, error)
+type CheckoutUseCase interface {
+	Execute(ctx context.Context, userId uuid.UUID) (float64, error)
 }
 
 type Validator interface {
@@ -18,14 +18,14 @@ type Validator interface {
 }
 
 type CheckoutHandler struct {
-	cartService CartService
-	validator   Validator
+	useCase   CheckoutUseCase
+	validator Validator
 }
 
-func NewCheckoutHandler(cartService CartService, validator Validator) *CheckoutHandler {
+func NewCheckoutHandler(useCase CheckoutUseCase, validator Validator) *CheckoutHandler {
 	return &CheckoutHandler{
-		cartService: cartService,
-		validator:   validator,
+		useCase:   useCase,
+		validator: validator,
 	}
 }
 
@@ -51,7 +51,7 @@ func (h *CheckoutHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalPrice, err := h.cartService.Checkout(r.Context(), userId)
+	totalPrice, err := h.useCase.Execute(r.Context(), userId)
 	if err != nil {
 		httpPkg.WriteServiceError(w, err)
 		return

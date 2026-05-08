@@ -27,7 +27,7 @@ func NewAddProductUseCase(
 	}
 }
 
-func (uc *AddProductUseCase) AddProduct(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {
+func (uc *AddProductUseCase) Execute(ctx context.Context, userId uuid.UUID, sku uint64, count uint32) error {
 	if count < 1 {
 		return model.ErrProductsCountMustBeGreaterThanNull
 	}
@@ -61,7 +61,7 @@ func (uc *AddProductUseCase) AddProduct(ctx context.Context, userId uuid.UUID, s
 				Name:  productInMasterSystem.Name,
 			})
 			if err != nil {
-				return fmt.Errorf("productRepository.AddProduct: %w", err)
+				return fmt.Errorf("productRepository.Execute: %w", err)
 			}
 		} else {
 			return fmt.Errorf("productRepository.GetProductBySku: %w", err)
