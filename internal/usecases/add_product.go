@@ -10,20 +10,20 @@ import (
 )
 
 type AddProductUseCase struct {
-	cartItems     CartItemRepository
-	localProducts LocalProductRepository
-	productClient ProductClient
+	cartItems         CartItemRepository
+	productRepository ProductRepository
+	productClient     ProductClient
 }
 
 func NewAddProductUseCase(
 	cartItems CartItemRepository,
-	localProducts LocalProductRepository,
+	productRepository ProductRepository,
 	productClient ProductClient,
 ) *AddProductUseCase {
 	return &AddProductUseCase{
-		cartItems:     cartItems,
-		localProducts: localProducts,
-		productClient: productClient,
+		cartItems:         cartItems,
+		productRepository: productRepository,
+		productClient:     productClient,
 	}
 }
 
@@ -52,10 +52,10 @@ func (uc *AddProductUseCase) AddProduct(ctx context.Context, userId uuid.UUID, s
 		})
 	}
 
-	_, err = uc.localProducts.GetProductBySku(ctx, sku)
+	_, err = uc.productRepository.GetProductBySku(ctx, sku)
 	if err != nil {
 		if errors.Is(err, model.ErrProductNotFound) {
-			_, err = uc.localProducts.AddProduct(ctx, model.Product{
+			_, err = uc.productRepository.AddProduct(ctx, model.Product{
 				Sku:   sku,
 				Price: productInMasterSystem.Price,
 				Name:  productInMasterSystem.Name,

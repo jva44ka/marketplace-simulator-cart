@@ -16,7 +16,7 @@ type CartItemRepository interface {
 	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
 }
 
-type LocalProductRepository interface {
+type ProductRepository interface {
 	GetProductBySku(ctx context.Context, sku uint64) (model.Product, error)
 	AddProduct(ctx context.Context, product model.Product) (*model.Product, error)
 }
