@@ -1,4 +1,4 @@
-package cart_item
+package usecases
 
 import (
 	"context"
@@ -9,14 +9,38 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
-func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
-	cartItems, err := s.cartItemRepository.GetByUserId(ctx, userId)
+type CheckoutUseCase struct {
+	transactor    Transactor
+	cartItems     CartItemRepository
+	productClient ProductClient
+	recordBuilder RecordBuilder
+	metrics       CheckoutMetrics
+}
+
+func NewCheckoutUseCase(
+	transactor Transactor,
+	cartItems CartItemRepository,
+	productClient ProductClient,
+	recordBuilder RecordBuilder,
+	metrics CheckoutMetrics,
+) *CheckoutUseCase {
+	return &CheckoutUseCase{
+		transactor:    transactor,
+		cartItems:     cartItems,
+		productClient: productClient,
+		recordBuilder: recordBuilder,
+		metrics:       metrics,
+	}
+}
+
+func (uc *CheckoutUseCase) Checkout(ctx context.Context, userId uuid.UUID) (float64, error) {
+	cartItems, err := uc.cartItems.GetByUserId(ctx, userId)
 	if err != nil {
-		return 0.0, fmt.Errorf("cartRepository.GetByUserId: %w", err)
+		return 0.0, fmt.Errorf("cartItemRepository.GetByUserId: %w", err)
 	}
 
 	if len(cartItems) == 0 {
-		s.checkoutMetrics.RecordFailure("empty_cart")
+		uc.metrics.RecordFailure("empty_cart")
 		return 0.0, model.ErrCartEmpty
 	}
 
@@ -27,25 +51,24 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		totalPrice += item.Product.Price * float64(item.Count)
 	}
 
-	reservationIds, err := s.productClient.Reserve(ctx, skuCounts)
+	reservationIds, err := uc.productClient.Reserve(ctx, skuCounts)
 	if err != nil {
-		s.checkoutMetrics.RecordFailure(checkoutFailureReason(err))
+		uc.metrics.RecordFailure(checkoutFailureReason(err))
 		return 0.0, fmt.Errorf("productClient.Reserve: %w", err)
 	}
 
-	outboxRecords, err := s.outboxRecordBuilder.BuildRecords(ctx, cartItems, reservationIds)
+	outboxRecords, err := uc.recordBuilder.BuildRecords(ctx, cartItems, reservationIds)
 	if err != nil {
-		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		releaseErr := uc.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
-			s.checkoutMetrics.RecordFailure("internal")
+			uc.metrics.RecordFailure("internal")
 			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
-
-		s.checkoutMetrics.RecordFailure("internal")
-		return 0.0, fmt.Errorf("outboxRecordBuilder.BuildRecords: %w", err)
+		uc.metrics.RecordFailure("internal")
+		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
 	}
 
-	err = s.transactor.InTransaction(ctx, func(txCartItems TxCartItemRepository, txOutbox TxOutboxRepository) error {
+	err = uc.transactor.InTransaction(ctx, func(txCartItems TxCartItemRepository, txOutbox TxOutboxRepository) error {
 		if err = txCartItems.RemoveByUserId(ctx, userId); err != nil {
 			return fmt.Errorf("cartItemRepository.RemoveByUserId: %w", err)
 		}
@@ -57,17 +80,16 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return nil
 	})
 	if err != nil {
-		releaseErr := s.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
+		releaseErr := uc.productClient.ReleaseReservation(ctx, reservationIdsToSlice(reservationIds))
 		if releaseErr != nil {
-			s.checkoutMetrics.RecordFailure("internal")
+			uc.metrics.RecordFailure("internal")
 			return 0.0, fmt.Errorf("checkout transaction failed: %w; release also failed: %v", err, releaseErr)
 		}
-
-		s.checkoutMetrics.RecordFailure("internal")
+		uc.metrics.RecordFailure("internal")
 		return 0.0, fmt.Errorf("checkout transaction: %w", err)
 	}
 
-	s.checkoutMetrics.RecordSuccess(totalPrice)
+	uc.metrics.RecordSuccess(totalPrice)
 	return totalPrice, nil
 }
 

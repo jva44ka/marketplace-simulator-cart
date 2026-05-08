@@ -26,8 +26,14 @@ internal/
     interceptors/    — gRPC-интерцепторы (таймер, ретрай)
     validation/      — валидация входящих запросов
   model/             — доменные модели и ошибки
+  usecases/          — пользовательские сценарии (Use Cases)
+    add_product.go          — добавление товара в корзину
+    checkout.go             — оформление заказа (сага)
+    get_cart.go             — получение корзины
+    remove_product.go       — удаление позиции
+    remove_all_products.go  — очистка корзины
+    transactor.go           — интерфейсы (Transactor, репозитории, клиент, метрики)
   service/
-    cart_item/       — бизнес-логика корзины (добавление, удаление, чекаут)
     outbox/          — построение outbox-записей подтверждения резервирований
   jobs/
     reservation_confirmation_outbox — асинхронная доставка ConfirmReservation в product

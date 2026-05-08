@@ -26,8 +26,8 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/metrics"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/infra/tracing"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/jobs"
-	cartItemPkg "github.com/jva44ka/marketplace-simulator-cart/internal/service/cart_item"
-	outboxServicePkg "github.com/jva44ka/marketplace-simulator-cart/internal/service/outbox"
+	outboxServicePkg "github.com/jva44ka/marketplace-simulator-cart/internal/service"
+	ucPkg "github.com/jva44ka/marketplace-simulator-cart/internal/usecases"
 	_ "github.com/jva44ka/marketplace-simulator-cart/swagger"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -236,11 +236,13 @@ func bootstrapHandler(cfgStore *config.ConfigStore) (http.Handler, *jobs.Reserva
 
 	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
 	businessMetrics := metrics.NewBusinessMetrics()
-	cartService := cartItemPkg.NewCartItemService(
-		transactor, cartItemRepo, productRepo, outboxRepo,
-		productClient, recordBuilder, businessMetrics,
-	)
 	validator := validation.Validator{}
+
+	getCartUC := ucPkg.NewGetCartUseCase(cartItemRepo)
+	addProductUC := ucPkg.NewAddProductUseCase(cartItemRepo, productRepo, productClient)
+	removeProductUC := ucPkg.NewRemoveProductUseCase(cartItemRepo)
+	removeAllProductsUC := ucPkg.NewRemoveAllProductsUseCase(cartItemRepo)
+	checkoutUC := ucPkg.NewCheckoutUseCase(transactor, cartItemRepo, productClient, recordBuilder, businessMetrics)
 
 	outboxMetrics := metrics.NewOutboxMetrics()
 	metricCollectorMetrics := metrics.NewMetricCollectorMetrics()
@@ -263,15 +265,15 @@ func bootstrapHandler(cfgStore *config.ConfigStore) (http.Handler, *jobs.Reserva
 	mx := http.NewServeMux()
 
 	mx.Handle("GET /user/{user_id}/cart", get_cart_items_by_user_id_handler.NewGetCartItemsByUserIdHandler(
-		cartService, validator))
+		getCartUC, validator))
 	mx.Handle("POST /user/{user_id}/cart/{sku}", add_products_to_cart_handler.NewAddProductsToCartHandler(
-		cartService, validator))
+		addProductUC, validator))
 	mx.Handle("DELETE /user/{user_id}/cart/{sku}", remove_products_from_cart_handler.NewRemoveProductsFromCartHandler(
-		cartService, validator))
+		removeProductUC, validator))
 	mx.Handle("DELETE /user/{user_id}/cart", clean_cart_handler.NewCleanCartHandler(
-		cartService, validator))
+		removeAllProductsUC, validator))
 	mx.Handle("POST /user/{user_id}/cart/checkout", checkout_handler.NewCheckoutHandler(
-		cartService, validator))
+		checkoutUC, validator))
 	mx.Handle("/swagger/", httpSwagger.WrapHandler)
 	mx.Handle("/metrics", promhttp.Handler())
 

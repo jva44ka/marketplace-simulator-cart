@@ -1,4 +1,4 @@
-package outbox
+package service
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package cart_item
+package usecases
 
 import (
 	"context"
@@ -7,10 +7,6 @@ import (
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
-type TxCartItemRepository interface {
-	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
-}
-
 type CartItemRepository interface {
 	Create(ctx context.Context, cartItem model.CartItem) (uint64, error)
 	Update(ctx context.Context, id uint64, cartItem model.CartItem) error
@@ -18,8 +14,6 @@ type CartItemRepository interface {
 	GetByUserIdAndSku(ctx context.Context, userId uuid.UUID, sku uint64) (*model.CartItem, error)
 	RemoveByUserIdAndSku(ctx context.Context, userId uuid.UUID, sku uint64) error
 	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
-	CountActiveCarts(ctx context.Context) (int64, error)
-	CountCartItems(ctx context.Context) (int64, error)
 }
 
 type ProductRepository interface {
@@ -27,22 +21,32 @@ type ProductRepository interface {
 	AddProduct(ctx context.Context, product model.Product) (*model.Product, error)
 }
 
+type ProductClient interface {
+	GetBySku(ctx context.Context, sku uint64) (*model.Product, error)
+	Reserve(ctx context.Context, productCountsBySkus map[uint64]uint32) (map[uint64]int64, error)
+	ReleaseReservation(ctx context.Context, reservationIds []int64) error
+}
+
+type TxCartItemRepository interface {
+	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
+}
+
 type TxOutboxRepository interface {
 	Create(ctx context.Context, rec model.ReservationConfirmationOutboxRecordNew) error
 }
 
-type OutboxRepository interface {
-	GetPending(ctx context.Context, limit int) ([]model.ReservationConfirmationOutboxRecord, error)
-	CountPending(ctx context.Context) (int64, error)
-	CountDeadLetters(ctx context.Context) (int64, error)
-	DeleteBatch(ctx context.Context, ids []uuid.UUID) error
-	IncrementRetry(ctx context.Context, id uuid.UUID) error
-	MarkDeadLetter(ctx context.Context, id uuid.UUID, reason string) error
-}
-
 type Transactor interface {
 	InTransaction(ctx context.Context, fn func(
-		cartItemRepo TxCartItemRepository,
-		outboxRepo TxOutboxRepository,
+		cartItems TxCartItemRepository,
+		outbox TxOutboxRepository,
 	) error) error
+}
+
+type RecordBuilder interface {
+	BuildRecords(ctx context.Context, cartItems []model.CartItem, reservationIds map[uint64]int64) ([]model.ReservationConfirmationOutboxRecordNew, error)
+}
+
+type CheckoutMetrics interface {
+	RecordSuccess(totalPrice float64)
+	RecordFailure(reason string)
 }
