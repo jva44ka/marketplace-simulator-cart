@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
-	cart_item "github.com/jva44ka/marketplace-simulator-cart/internal/service/cart_item"
 )
 
 type CartItemRepositoryMetrics interface {
@@ -27,7 +26,7 @@ func NewPgxCartItemRepository(pool *pgxpool.Pool, metrics CartItemRepositoryMetr
 }
 
 // WithTx returns a transaction-bound view of this repository.
-func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) cart_item.CartItemTxRepository {
+func (r *PgxCartItemRepository) WithTx(tx pgx.Tx) *PgxCartItemTxRepository {
 	return &PgxCartItemTxRepository{tx: tx, metrics: r.metrics}
 }
 

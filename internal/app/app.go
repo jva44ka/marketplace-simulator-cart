@@ -228,10 +228,10 @@ func bootstrapHandler(cfgStore *config.ConfigStore) (http.Handler, *jobs.Reserva
 	}
 
 	dbMetrics := metrics.NewDbMetrics()
-	transactor := databasePkg.NewTransactor(pool)
 	cartItemRepo := databasePkg.NewPgxCartItemRepository(pool, dbMetrics)
 	productRepo := databasePkg.NewPgxProductRepository(pool, dbMetrics)
 	outboxRepo := databasePkg.NewReservationConfirmationOutboxRepository(pool)
+	transactor := databasePkg.NewCartServiceTransactor(pool, cartItemRepo, outboxRepo)
 
 	recordBuilder := outboxServicePkg.NewReservationConfirmationRecordBuilder()
 	businessMetrics := metrics.NewBusinessMetrics()

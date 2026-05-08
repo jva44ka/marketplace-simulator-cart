@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
@@ -46,12 +45,12 @@ func (s *CartItemService) Checkout(ctx context.Context, userId uuid.UUID) (float
 		return 0.0, fmt.Errorf("recordBuilder.BuildRecords: %w", err)
 	}
 
-	err = s.transactor.InTransaction(ctx, func(tx pgx.Tx) error {
-		if err = s.cartItems.WithTx(tx).RemoveByUserId(ctx, userId); err != nil {
+	err = s.transactor.InTransaction(ctx, func(txCartItems CartItemTxRepo, txOutbox OutboxTxRepo) error {
+		if err = txCartItems.RemoveByUserId(ctx, userId); err != nil {
 			return fmt.Errorf("cartItems.RemoveByUserId: %w", err)
 		}
 		for _, rec := range outboxRecords {
-			if err = s.outbox.WithTx(tx).Create(ctx, rec); err != nil {
+			if err = txOutbox.Create(ctx, rec); err != nil {
 				return fmt.Errorf("outbox.Create: %w", err)
 			}
 		}

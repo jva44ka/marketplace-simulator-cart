@@ -4,22 +4,24 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
 )
 
-// Transactor begins a DB transaction and hands the live pgx.Tx to the caller.
-// Inside fn, call repo.WithTx(tx) to bind repositories to the transaction.
+// Transactor opens a transaction and calls fn with pre-bound tx repos.
+// The service never sees pgx.Tx.
 type Transactor interface {
-	InTransaction(ctx context.Context, fn func(tx pgx.Tx) error) error
+	InTransaction(ctx context.Context, fn func(
+		cartItems CartItemTxRepo,
+		outbox    OutboxTxRepo,
+	) error) error
 }
 
-// CartItemTxRepository contains the cart-item writes that must run inside a transaction.
-type CartItemTxRepository interface {
+// CartItemTxRepo contains cart-item writes that run inside a transaction.
+type CartItemTxRepo interface {
 	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
 }
 
-// CartItemRepository is the full interface for cart item persistence.
+// CartItemRepository is the full read/write interface for cart item persistence.
 type CartItemRepository interface {
 	Create(ctx context.Context, cartItem model.CartItem) (uint64, error)
 	Update(ctx context.Context, id uint64, cartItem model.CartItem) error
@@ -29,7 +31,6 @@ type CartItemRepository interface {
 	RemoveByUserId(ctx context.Context, userId uuid.UUID) error
 	CountActiveCarts(ctx context.Context) (int64, error)
 	CountCartItems(ctx context.Context) (int64, error)
-	WithTx(tx pgx.Tx) CartItemTxRepository
 }
 
 // LocalProductRepository is the cart-local product cache.
@@ -38,8 +39,8 @@ type LocalProductRepository interface {
 	AddProduct(ctx context.Context, product model.Product) (*model.Product, error)
 }
 
-// OutboxTxRepository contains the outbox write that must run inside a transaction.
-type OutboxTxRepository interface {
+// OutboxTxRepo contains the outbox write that must run inside a transaction.
+type OutboxTxRepo interface {
 	Create(ctx context.Context, rec model.ReservationConfirmationOutboxRecordNew) error
 }
 
@@ -51,5 +52,4 @@ type OutboxRepository interface {
 	DeleteBatch(ctx context.Context, ids []uuid.UUID) error
 	IncrementRetry(ctx context.Context, id uuid.UUID) error
 	MarkDeadLetter(ctx context.Context, id uuid.UUID, reason string) error
-	WithTx(tx pgx.Tx) OutboxTxRepository
 }

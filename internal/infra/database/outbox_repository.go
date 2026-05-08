@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jva44ka/marketplace-simulator-cart/internal/model"
-	cart_item "github.com/jva44ka/marketplace-simulator-cart/internal/service/cart_item"
 )
 
 type ReservationConfirmationOutboxRepository struct {
@@ -21,7 +20,7 @@ func NewReservationConfirmationOutboxRepository(pool *pgxpool.Pool) *Reservation
 }
 
 // WithTx returns a transaction-bound view of this repository.
-func (r *ReservationConfirmationOutboxRepository) WithTx(tx pgx.Tx) cart_item.OutboxTxRepository {
+func (r *ReservationConfirmationOutboxRepository) WithTx(tx pgx.Tx) *ReservationConfirmationOutboxTxRepository {
 	return &ReservationConfirmationOutboxTxRepository{tx: tx}
 }
 
