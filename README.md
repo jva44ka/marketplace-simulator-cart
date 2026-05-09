@@ -1,5 +1,7 @@
 # marketplace-simulator-cart
 
+🇷🇺 Русский · [🇬🇧 English](README.en.md)
+
 Микросервис корзины покупок — часть учебного проекта «Симулятор маркетплейса».
 
 REST API на Go, PostgreSQL, Outbox pattern для надёжной доставки подтверждений резервирований в сервис товаров. Circuit breaker + retry для gRPC-клиента. Prometheus-метрики, OpenTelemetry-трейсы.
