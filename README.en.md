@@ -2,7 +2,7 @@
 
 [🇷🇺 Русский](README.md) · 🇬🇧 English
 
-Shopping cart microservice — part of the "Marketplace Simulator" educational project.
+Shopping cart microservice — part of the "Marketplace Simulator" pet project.
 
 REST API in Go, PostgreSQL, Outbox pattern for reliable delivery of reservation confirmations to the product service. Circuit breaker + retry for the gRPC client. Prometheus metrics, OpenTelemetry traces.
 
