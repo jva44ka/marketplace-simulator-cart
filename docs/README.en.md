@@ -2,7 +2,7 @@
 
 [🇷🇺 Русский](README.md) · 🇬🇧 English
 
-Shopping cart microservice in the "Marketplace Simulator" educational project.
+Shopping cart microservice in the "Marketplace Simulator" pet project.
 
 ## Stack
 
